@@ -69,7 +69,13 @@ public sealed class ImGuiController : IDisposable
 
     public void WindowResized(int width, int height)
     {
-        ImGui.GetIO().DisplaySize = new Vector2(width, height);
+        var io = ImGui.GetIO();
+        io.DisplaySize = new Vector2(width, height);
+
+        var fb = _window.FramebufferSize;
+        io.DisplayFramebufferScale = new Vector2(
+            width > 0 ? fb.X / (float)width : 1f,
+            height > 0 ? fb.Y / (float)height : 1f);
     }
 
     public void Update(float deltaSeconds)
@@ -93,8 +99,13 @@ public sealed class ImGuiController : IDisposable
     private void SetPerFrameData(float deltaSeconds)
     {
         var io = ImGui.GetIO();
-        io.DisplaySize = new Vector2(_window.ClientSize.X, _window.ClientSize.Y);
-        io.DisplayFramebufferScale = Vector2.One;
+        var client = _window.ClientSize;
+        var framebuffer = _window.FramebufferSize;
+
+        io.DisplaySize = new Vector2(client.X, client.Y);
+        io.DisplayFramebufferScale = new Vector2(
+            client.X > 0 ? framebuffer.X / (float)client.X : 1f,
+            client.Y > 0 ? framebuffer.Y / (float)client.Y : 1f);
         io.DeltaTime = deltaSeconds;
     }
 

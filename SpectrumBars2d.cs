@@ -4,17 +4,25 @@ namespace macViz;
 
 public sealed class SpectrumBars2d : IVisual
 {
-    private const int BarCount = 64;
-    private readonly float[] _vertices = new float[BarCount * 6 * 2];
+    private float[] _vertices = Array.Empty<float>();
 
     private int _shader;
     private int _vao;
     private int _vbo;
+    private int _colorLocation;
+
+    private readonly Parameter<int> _barCount = new("BarCount", 8, 128, 64);
+    private readonly Parameter<float> _colorHue = new("ColorHue", 0f, 360f, 190f);
+    private readonly Parameter<float> _scaleY = new("ScaleY", 0.1f, 5.0f, 1.0f);
+
+    private readonly IReadOnlyList<IParameter> _parameters;
 
     public string Name => "Spectrum Bars 2D";
+    public IReadOnlyList<IParameter> Parameters => _parameters;
 
     public SpectrumBars2d()
     {
+        _parameters = [_barCount, _colorHue, _scaleY];
         CreateGlResources();
     }
 
@@ -25,10 +33,16 @@ public sealed class SpectrumBars2d : IVisual
             return;
         }
 
-        BuildVertices(spectrum);
+        var bars = _barCount.Value;
+        EnsureVertexCapacity(bars);
+        BuildVertices(spectrum, bars, _scaleY.Value);
+
+        HsvToRgb(_colorHue.Value, 0.8f, 1.0f, out var r, out var g, out var b);
 
         GL.UseProgram(_shader);
+        GL.Uniform3(_colorLocation, r, g, b);
         GL.BindVertexArray(_vao);
+
         GL.Disable(EnableCap.CullFace);
         GL.Disable(EnableCap.DepthTest);
         GL.Disable(EnableCap.ScissorTest);
@@ -41,15 +55,24 @@ public sealed class SpectrumBars2d : IVisual
         GL.UseProgram(0);
     }
 
-    private void BuildVertices(float[] spectrum)
+    private void EnsureVertexCapacity(int barCount)
     {
-        var binsPerBar = Math.Max(1, spectrum.Length / BarCount);
-        var step = 2f / BarCount;
+        var required = barCount * 6 * 2;
+        if (_vertices.Length != required)
+        {
+            _vertices = new float[required];
+        }
+    }
+
+    private void BuildVertices(float[] spectrum, int barCount, float scaleY)
+    {
+        var binsPerBar = Math.Max(1, spectrum.Length / barCount);
+        var step = 2f / barCount;
         var barWidth = step * 0.82f;
         var sidePadding = (step - barWidth) * 0.5f;
 
         var v = 0;
-        for (var i = 0; i < BarCount; i++)
+        for (var i = 0; i < barCount; i++)
         {
             var start = i * binsPerBar;
             var end = Math.Min(spectrum.Length, start + binsPerBar);
@@ -61,13 +84,14 @@ public sealed class SpectrumBars2d : IVisual
             }
 
             var db = sum / Math.Max(1, end - start);
-            var normalized = Math.Clamp((db + 120f) / 126f, 0f, 1f);
-            normalized = MathF.Max(normalized, 0.03f);
+            var normalized = Math.Clamp((db + 80f) / 80f, 0f, 1f);
+            normalized = MathF.Max(normalized, 0.01f);
 
             var x0 = -1f + (i * step) + sidePadding;
             var x1 = x0 + barWidth;
             var y0 = -1f;
-            var y1 = -1f + (normalized * 1.9f);
+            var y1 = -1f + (normalized * 2.0f * scaleY);
+            y1 = Math.Clamp(y1, -1f, 1f);
 
             _vertices[v++] = x0; _vertices[v++] = y0;
             _vertices[v++] = x1; _vertices[v++] = y0;
@@ -77,6 +101,25 @@ public sealed class SpectrumBars2d : IVisual
             _vertices[v++] = x1; _vertices[v++] = y1;
             _vertices[v++] = x0; _vertices[v++] = y1;
         }
+    }
+
+    private static void HsvToRgb(float hueDeg, float sat, float val, out float r, out float g, out float b)
+    {
+        var hue = (hueDeg % 360f + 360f) % 360f;
+        var c = val * sat;
+        var x = c * (1 - MathF.Abs((hue / 60f) % 2 - 1));
+        var m = val - c;
+
+        if (hue < 60f) { r = c; g = x; b = 0f; }
+        else if (hue < 120f) { r = x; g = c; b = 0f; }
+        else if (hue < 180f) { r = 0f; g = c; b = x; }
+        else if (hue < 240f) { r = 0f; g = x; b = c; }
+        else if (hue < 300f) { r = x; g = 0f; b = c; }
+        else { r = c; g = 0f; b = x; }
+
+        r += m;
+        g += m;
+        b += m;
     }
 
     private void CreateGlResources()
@@ -93,11 +136,12 @@ public sealed class SpectrumBars2d : IVisual
 
         const string fragmentSource = """
             #version 330 core
+            uniform vec3 uColor;
             out vec4 fragColor;
 
             void main()
             {
-                fragColor = vec4(0.2, 0.9, 1.0, 1.0);
+                fragColor = vec4(uColor, 1.0);
             }
             """;
 
@@ -134,12 +178,14 @@ public sealed class SpectrumBars2d : IVisual
         GL.DeleteShader(vertexShader);
         GL.DeleteShader(fragmentShader);
 
+        _colorLocation = GL.GetUniformLocation(_shader, "uColor");
+
         _vao = GL.GenVertexArray();
         _vbo = GL.GenBuffer();
 
         GL.BindVertexArray(_vao);
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Length * sizeof(float), IntPtr.Zero, BufferUsageHint.DynamicDraw);
+        GL.BufferData(BufferTarget.ArrayBuffer, 0, IntPtr.Zero, BufferUsageHint.DynamicDraw);
         GL.EnableVertexAttribArray(0);
         GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), IntPtr.Zero);
 
