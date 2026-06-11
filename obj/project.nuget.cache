@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "dgSpecHash": "F0HcbpD+3ew=",
+  "success": true,
+  "projectFilePath": "/Users/yazzi/projects/macViz/macViz.csproj",
+  "expectedPackageFiles": [
+    "/Users/yazzi/.nuget/packages/libbass/2.4.18.3/libbass.2.4.18.3.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/managedbass/4.0.2/managedbass.4.0.2.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk/4.9.4/opentk.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.audio.openal/4.9.4/opentk.audio.openal.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.compute/4.9.4/opentk.compute.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.core/4.9.4/opentk.core.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.graphics/4.9.4/opentk.graphics.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.input/4.9.4/opentk.input.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.mathematics/4.9.4/opentk.mathematics.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.redist.glfw/3.4.0.44/opentk.redist.glfw.3.4.0.44.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.windowing.common/4.9.4/opentk.windowing.common.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.windowing.desktop/4.9.4/opentk.windowing.desktop.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opentk.windowing.graphicslibraryframework/4.9.4/opentk.windowing.graphicslibraryframework.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/twizzle.imgui-bundle.net/1.91.5.2/twizzle.imgui-bundle.net.1.91.5.2.nupkg.sha512"
+  ],
+  "logs": []
+}
