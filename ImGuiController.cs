@@ -61,7 +61,7 @@ public sealed class ImGuiController : IDisposable
 
         io.DisplaySize = new Vector2(width, height);
         io.Fonts.AddFontDefault();
-        io.FontGlobalScale = 2.0f;
+        io.FontGlobalScale = 1.0f;
 
         CreateDeviceResources();
         SetPerFrameData(1f / 60f);

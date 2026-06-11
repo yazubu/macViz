@@ -33,11 +33,11 @@ public sealed class SpectrumBars2d : IVisual
             return;
         }
 
-        var bars = _barCount.Value;
+        var bars = _barCount.CurrentValue;
         EnsureVertexCapacity(bars);
-        BuildVertices(spectrum, bars, _scaleY.Value);
+        BuildVertices(spectrum, bars, _scaleY.CurrentValue);
 
-        HsvToRgb(_colorHue.Value, 0.8f, 1.0f, out var r, out var g, out var b);
+        HsvToRgb(_colorHue.CurrentValue, 0.8f, 1.0f, out var r, out var g, out var b);
 
         GL.UseProgram(_shader);
         GL.Uniform3(_colorLocation, r, g, b);

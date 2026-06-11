@@ -13,11 +13,23 @@ public class MinimalGameWindow : GameWindow
     private AudioSpectrumAnalyzer? _audioSpectrum;
     private readonly float[] _latestSpectrum = new float[512];
     private readonly List<IVisual> _visuals = [];
+    private readonly LfoEngine _lfoEngine = new();
+    private readonly TempoController _tempoController = new();
+    private static readonly (string Label, float Multiplier)[] SyncSpeedOptions =
+    [
+        ("1:4", 0.25f),
+        ("1:2", 0.5f),
+        ("1:1", 1f),
+        ("2:1", 2f),
+        ("4:1", 4f)
+    ];
+
     private int _selectedVisualIndex;
     private int _selectedParameterIndex;
     private bool _tabWasDown;
     private bool _leftWasDown;
     private bool _rightWasDown;
+
     private double _elapsedTime;
     private string? _audioInitError;
     private double _lastSpectrumUpdateTime;
@@ -52,9 +64,37 @@ public class MinimalGameWindow : GameWindow
     {
         base.OnRenderFrame(args);
 
-        _imGuiController!.Update((float)args.Time);
+        var deltaTime = (float)args.Time;
+
+        _imGuiController!.Update(deltaTime);
         _elapsedTime += args.Time;
 
+        _tempoController.Update(deltaTime);
+        _lfoEngine.Update(deltaTime, _tempoController);
+        ApplyLfoToParameters();
+
+        UpdateSpectrumData();
+
+        GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+        if (_visuals.Count > 0)
+        {
+            _visuals[_selectedVisualIndex].Render(_latestSpectrum, (float)_elapsedTime);
+        }
+
+        ImGui.NewFrame();
+
+        DrawParametersWindow();
+        DrawLfoManagerWindow();
+
+        ImGui.Render();
+        _imGuiController.RenderDrawData(ImGui.GetDrawData());
+
+        SwapBuffers();
+    }
+
+    private void UpdateSpectrumData()
+    {
         if (_audioSpectrum is not null && _audioSpectrum.TryDequeueLatest(out var latest))
         {
             var count = Math.Min(latest.Length, _latestSpectrum.Length);
@@ -67,7 +107,6 @@ public class MinimalGameWindow : GameWindow
 
             Array.Copy(latest, _latestSpectrum, count);
 
-            // Only consider it "live" if spectrum is actually changing.
             if (totalDelta > 0.5f)
             {
                 _lastSpectrumUpdateTime = _elapsedTime;
@@ -84,16 +123,10 @@ public class MinimalGameWindow : GameWindow
             _lastAudioHealthLogTime = _elapsedTime;
             Console.WriteLine($"[Audio] Record callbacks: {_audioSpectrum.RecordCallbackCount}");
         }
+    }
 
-        GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-        if (_visuals.Count > 0)
-        {
-            _visuals[_selectedVisualIndex].Render(_latestSpectrum, (float)_elapsedTime);
-        }
-
-        ImGui.NewFrame();
-
+    private void DrawParametersWindow()
+    {
         ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 12), ImGuiCond.Once);
         ImGui.Begin("Parameters", ImGuiWindowFlags.AlwaysAutoResize);
         ImGui.Text($"FPS: {ImGui.GetIO().Framerate:F1}");
@@ -107,6 +140,7 @@ public class MinimalGameWindow : GameWindow
                 if (ImGui.Selectable(_visuals[i].Name, selected))
                 {
                     _selectedVisualIndex = i;
+                    _selectedParameterIndex = 0;
                 }
 
                 if (selected)
@@ -131,11 +165,139 @@ public class MinimalGameWindow : GameWindow
         }
 
         ImGui.End();
+    }
 
-        ImGui.Render();
-        _imGuiController.RenderDrawData(ImGui.GetDrawData());
+    private void DrawLfoManagerWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 330), ImGuiCond.Once);
+        ImGui.Begin("LFO Manager", ImGuiWindowFlags.AlwaysAutoResize);
 
-        SwapBuffers();
+        var bpm = _tempoController.Bpm;
+        if (ImGui.SliderFloat("Tempo (BPM)", ref bpm, 60f, 160f, "%.1f"))
+        {
+            _tempoController.Bpm = bpm;
+        }
+
+        var beatLight = _tempoController.BeatPhase < 0.18f
+            ? new System.Numerics.Vector4(0.2f, 1f, 0.2f, 1f)
+            : new System.Numerics.Vector4(0.1f, 0.25f, 0.1f, 1f);
+        ImGui.ColorButton("##metronome", beatLight, ImGuiColorEditFlags.NoTooltip, new System.Numerics.Vector2(18, 18));
+        ImGui.SameLine();
+        ImGui.Text($"Beat {(_tempoController.BeatNumber % 4) + 1}");
+
+        if (ImGui.Button("Add LFO"))
+        {
+            _lfoEngine.AddLfo();
+        }
+
+        ImGui.SameLine();
+        ImGui.Text($"Count: {_lfoEngine.Lfos.Count}");
+
+        for (var i = 0; i < _lfoEngine.Lfos.Count; i++)
+        {
+            var lfo = _lfoEngine.Lfos[i];
+            ImGui.PushID(lfo.Id);
+
+            if (ImGui.TreeNode($"LFO {lfo.Id}"))
+            {
+                var wave = lfo.WaveType;
+                if (ImGui.BeginCombo("Wave", wave.ToString()))
+                {
+                    foreach (LfoWaveType candidate in Enum.GetValues<LfoWaveType>())
+                    {
+                        var selected = candidate == wave;
+                        if (ImGui.Selectable(candidate.ToString(), selected))
+                        {
+                            lfo.WaveType = candidate;
+                        }
+
+                        if (selected)
+                        {
+                            ImGui.SetItemDefaultFocus();
+                        }
+                    }
+
+                    ImGui.EndCombo();
+                }
+
+                var syncEnabled = lfo.SyncEnabled;
+                if (ImGui.Checkbox("Sync to Beat", ref syncEnabled))
+                {
+                    lfo.SyncEnabled = syncEnabled;
+                }
+
+                if (lfo.SyncEnabled)
+                {
+                    var currentLabel = GetSyncSpeedLabel(lfo.SyncSpeedMultiplier);
+                    if (ImGui.BeginCombo("Speed", currentLabel))
+                    {
+                        foreach (var option in SyncSpeedOptions)
+                        {
+                            var selected = MathF.Abs(lfo.SyncSpeedMultiplier - option.Multiplier) < 0.0001f;
+                            if (ImGui.Selectable(option.Label, selected))
+                            {
+                                lfo.SyncSpeedMultiplier = option.Multiplier;
+                            }
+
+                            if (selected)
+                            {
+                                ImGui.SetItemDefaultFocus();
+                            }
+                        }
+
+                        ImGui.EndCombo();
+                    }
+                }
+                else
+                {
+                    var freq = lfo.Frequency;
+                    if (ImGui.SliderFloat("Frequency (Hz)", ref freq, 0.01f, 20f, "%.2f"))
+                    {
+                        lfo.Frequency = freq;
+                    }
+                }
+
+                if (lfo.WaveType == LfoWaveType.PWM)
+                {
+                    var duty = lfo.DutyCycle;
+                    if (ImGui.SliderFloat("Duty", ref duty, 0.05f, 0.95f, "%.2f"))
+                    {
+                        lfo.DutyCycle = duty;
+                    }
+                }
+
+                ImGui.Text($"Output: {lfo.Output:F3}");
+                ImGui.ProgressBar((lfo.Output + 1f) * 0.5f, new System.Numerics.Vector2(220, 0), "");
+
+                if (ImGui.Button("Remove"))
+                {
+                    var id = lfo.Id;
+                    ImGui.TreePop();
+                    ImGui.PopID();
+                    _lfoEngine.RemoveLfo(id);
+                    break;
+                }
+
+                ImGui.TreePop();
+            }
+
+            ImGui.PopID();
+        }
+
+        ImGui.End();
+    }
+
+    private static string GetSyncSpeedLabel(float multiplier)
+    {
+        foreach (var option in SyncSpeedOptions)
+        {
+            if (MathF.Abs(option.Multiplier - multiplier) < 0.0001f)
+            {
+                return option.Label;
+            }
+        }
+
+        return $"x{multiplier:0.##}";
     }
 
     private void DrawParameters(IVisual visual)
@@ -159,6 +321,8 @@ public class MinimalGameWindow : GameWindow
                         intParameter.Value = value;
                     }
 
+                    ImGui.SameLine();
+                    ImGui.TextDisabled($"= {intParameter.CurrentValue}");
                     break;
                 }
                 case Parameter<float> floatParameter:
@@ -169,6 +333,8 @@ public class MinimalGameWindow : GameWindow
                         floatParameter.Value = value;
                     }
 
+                    ImGui.SameLine();
+                    ImGui.TextDisabled($"= {floatParameter.CurrentValue:F2}");
                     break;
                 }
             }
@@ -177,9 +343,62 @@ public class MinimalGameWindow : GameWindow
             {
                 ImGui.PopStyleColor();
             }
+
+            DrawLfoAssignment(parameter, i);
+            ImGui.Separator();
         }
 
-        ImGui.TextDisabled("Tab: next parameter | Shift+Tab: previous | Left/Right: adjust");
+        ImGui.TextDisabled("Tab: next parameter | Shift+Tab: previous | Left/Right: adjust base value");
+    }
+
+    private void DrawLfoAssignment(IParameter parameter, int parameterIndex)
+    {
+        ImGui.PushID($"param_assign_{parameterIndex}");
+
+        var selectedLabel = parameter.AssignedLfoId is null ? "None" : $"LFO {parameter.AssignedLfoId.Value}";
+        if (ImGui.BeginCombo("LFO", selectedLabel))
+        {
+            var noneSelected = parameter.AssignedLfoId is null;
+            if (ImGui.Selectable("None", noneSelected))
+            {
+                parameter.AssignedLfoId = null;
+            }
+
+            if (noneSelected)
+            {
+                ImGui.SetItemDefaultFocus();
+            }
+
+            foreach (var lfo in _lfoEngine.Lfos)
+            {
+                var selected = parameter.AssignedLfoId == lfo.Id;
+                if (ImGui.Selectable($"LFO {lfo.Id}", selected))
+                {
+                    parameter.AssignedLfoId = lfo.Id;
+                }
+
+                if (selected)
+                {
+                    ImGui.SetItemDefaultFocus();
+                }
+            }
+
+            ImGui.EndCombo();
+        }
+
+        var scale = parameter.LfoScale;
+        if (ImGui.SliderFloat("Scale", ref scale, -200f, 200f, "%.2f"))
+        {
+            parameter.LfoScale = scale;
+        }
+
+        var offset = parameter.LfoOffset;
+        if (ImGui.SliderFloat("Offset", ref offset, -200f, 200f, "%.2f"))
+        {
+            parameter.LfoOffset = offset;
+        }
+
+        ImGui.PopID();
     }
 
     private void HandleParameterKeyboardNavigation(IVisual visual)
@@ -210,12 +429,12 @@ public class MinimalGameWindow : GameWindow
 
         if (leftDown && !_leftWasDown)
         {
-            AdjustParameter(visual.Parameters[_selectedParameterIndex], -1, shiftDown);
+            AdjustBaseParameter(visual.Parameters[_selectedParameterIndex], -1, shiftDown);
         }
 
         if (rightDown && !_rightWasDown)
         {
-            AdjustParameter(visual.Parameters[_selectedParameterIndex], 1, shiftDown);
+            AdjustBaseParameter(visual.Parameters[_selectedParameterIndex], 1, shiftDown);
         }
 
         _tabWasDown = tabDown;
@@ -223,7 +442,7 @@ public class MinimalGameWindow : GameWindow
         _rightWasDown = rightDown;
     }
 
-    private static void AdjustParameter(IParameter parameter, int direction, bool fast)
+    private static void AdjustBaseParameter(IParameter parameter, int direction, bool fast)
     {
         switch (parameter)
         {
@@ -239,6 +458,17 @@ public class MinimalGameWindow : GameWindow
                 var step = (fast ? 0.05f : 0.01f) * range;
                 floatParameter.Value = Math.Clamp(floatParameter.Value + (direction * step), floatParameter.Min, floatParameter.Max);
                 break;
+            }
+        }
+    }
+
+    private void ApplyLfoToParameters()
+    {
+        foreach (var visual in _visuals)
+        {
+            foreach (var parameter in visual.Parameters)
+            {
+                parameter.ApplyLfo(_lfoEngine);
             }
         }
     }
