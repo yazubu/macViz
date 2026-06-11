@@ -32,7 +32,7 @@ public sealed class LFO
         _sampleAndHoldValue = NextRandomValue();
     }
 
-    public float GetValue(float deltaTime, TempoController tempo)
+    public float GetValue(float deltaTime, IBeatClock tempo)
     {
         float phase;
 
@@ -95,7 +95,7 @@ public sealed class LfoEngine
         Lfos.RemoveAll(x => x.Id == id);
     }
 
-    public void Update(float deltaTime, TempoController tempo)
+    public void Update(float deltaTime, IBeatClock tempo)
     {
         foreach (var lfo in Lfos)
         {

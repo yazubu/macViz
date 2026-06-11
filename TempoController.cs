@@ -1,6 +1,14 @@
 namespace macViz;
 
-public sealed class TempoController
+public interface IBeatClock
+{
+    float Bpm { get; }
+    long BeatNumber { get; }
+    float BeatPhase { get; }
+    void Update(float deltaTime);
+}
+
+public sealed class TempoController : IBeatClock
 {
     private double _totalBeats;
 

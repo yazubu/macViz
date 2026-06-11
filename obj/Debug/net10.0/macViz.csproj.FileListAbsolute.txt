@@ -42,3 +42,5 @@
 /Users/yazzi/projects/macViz/bin/Debug/net10.0/runtimes/win-x64/native/bass.dll
 /Users/yazzi/projects/macViz/bin/Debug/net10.0/runtimes/win-x86/native/bass.dll
 /Users/yazzi/projects/macViz/obj/Debug/net10.0/macViz.sourcelink.json
+/Users/yazzi/projects/macViz/bin/Debug/net10.0/libabl_link.dylib
+/Users/yazzi/projects/macViz/bin/Debug/net10.0/libabl_link.dll

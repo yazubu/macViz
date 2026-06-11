@@ -14,4 +14,9 @@
     <PackageReference Include="Twizzle.ImGui-Bundle.NET" Version="1.91.5.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="native/libabl_link.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="libabl_link.dylib" />
+    <None Include="native/libabl_link.dll" CopyToOutputDirectory="PreserveNewest" TargetPath="libabl_link.dll" />
+  </ItemGroup>
+
 </Project>

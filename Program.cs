@@ -14,7 +14,9 @@ public class MinimalGameWindow : GameWindow
     private readonly float[] _latestSpectrum = new float[512];
     private readonly List<IVisual> _visuals = [];
     private readonly LfoEngine _lfoEngine = new();
-    private readonly TempoController _tempoController = new();
+    private readonly TempoController _internalTempo = new();
+    private readonly AbletonLinkManager _abletonLink = new();
+    private bool _preferAbletonLink = true;
     private static readonly (string Label, float Multiplier)[] SyncSpeedOptions =
     [
         ("1:4", 0.25f),
@@ -49,6 +51,8 @@ public class MinimalGameWindow : GameWindow
 
         _visuals.Add(new SpectrumBars2d());
 
+        _abletonLink.Initialize(_internalTempo.Bpm);
+
         try
         {
             _audioSpectrum = new AudioSpectrumAnalyzer();
@@ -69,8 +73,9 @@ public class MinimalGameWindow : GameWindow
         _imGuiController!.Update(deltaTime);
         _elapsedTime += args.Time;
 
-        _tempoController.Update(deltaTime);
-        _lfoEngine.Update(deltaTime, _tempoController);
+        _internalTempo.Update(deltaTime);
+        _abletonLink.Update(deltaTime);
+        _lfoEngine.Update(deltaTime, GetActiveBeatClock());
         ApplyLfoToParameters();
 
         UpdateSpectrumData();
@@ -172,18 +177,48 @@ public class MinimalGameWindow : GameWindow
         ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 330), ImGuiCond.Once);
         ImGui.Begin("LFO Manager", ImGuiWindowFlags.AlwaysAutoResize);
 
-        var bpm = _tempoController.Bpm;
-        if (ImGui.SliderFloat("Tempo (BPM)", ref bpm, 60f, 160f, "%.1f"))
+        var useLink = _preferAbletonLink;
+        var linkReady = _abletonLink.IsAvailable;
+        if (!linkReady)
         {
-            _tempoController.Bpm = bpm;
+            ImGui.BeginDisabled();
         }
 
-        var beatLight = _tempoController.BeatPhase < 0.18f
+        if (ImGui.Checkbox("Use Ableton Link", ref useLink))
+        {
+            _preferAbletonLink = useLink;
+            _abletonLink.Enable(_preferAbletonLink);
+        }
+
+        if (!linkReady)
+        {
+            ImGui.EndDisabled();
+            ImGui.TextDisabled("Ableton Link unavailable (using internal tempo)");
+        }
+
+        var activeClock = GetActiveBeatClock();
+
+        var bpm = activeClock.Bpm;
+        if (ImGui.SliderFloat("Tempo (BPM)", ref bpm, 60f, 160f, "%.1f"))
+        {
+            if (_preferAbletonLink && _abletonLink.IsAvailable)
+            {
+                _abletonLink.SetTempo(bpm);
+            }
+            else
+            {
+                _internalTempo.Bpm = bpm;
+            }
+        }
+
+        var beatLight = activeClock.BeatPhase < 0.18f
             ? new System.Numerics.Vector4(0.2f, 1f, 0.2f, 1f)
             : new System.Numerics.Vector4(0.1f, 0.25f, 0.1f, 1f);
         ImGui.ColorButton("##metronome", beatLight, ImGuiColorEditFlags.NoTooltip, new System.Numerics.Vector2(18, 18));
         ImGui.SameLine();
-        ImGui.Text($"Beat {(_tempoController.BeatNumber % 4) + 1}");
+        ImGui.Text($"Beat {(activeClock.BeatNumber % 4) + 1}");
+
+        ImGui.Text($"Link BPM: {_abletonLink.Bpm:F2} | Peers: {_abletonLink.NumPeers}");
 
         if (ImGui.Button("Add LFO"))
         {
@@ -285,6 +320,16 @@ public class MinimalGameWindow : GameWindow
         }
 
         ImGui.End();
+    }
+
+    private IBeatClock GetActiveBeatClock()
+    {
+        if (_preferAbletonLink && _abletonLink.IsAvailable && _abletonLink.IsEnabled)
+        {
+            return _abletonLink;
+        }
+
+        return _internalTempo;
     }
 
     private static string GetSyncSpeedLabel(float multiplier)
@@ -493,6 +538,7 @@ public class MinimalGameWindow : GameWindow
     protected override void OnUnload()
     {
         _audioSpectrum?.Dispose();
+        _abletonLink.Dispose();
         foreach (var visual in _visuals)
         {
             visual.Dispose();
