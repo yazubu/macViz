@@ -9,7 +9,9 @@ namespace macViz;
 
 public class MinimalGameWindow : GameWindow
 {
-    private ImGuiController? _imGuiController;
+    private readonly object _stateLock = new();
+    private ControlPanelWindow? _controlPanelWindow;
+    private bool _focusControlWindowPending;
     private AudioSpectrumAnalyzer? _audioSpectrum;
     private readonly float[] _latestSpectrum = new float[512];
     private readonly List<IVisual> _visuals = [];
@@ -78,11 +80,18 @@ public class MinimalGameWindow : GameWindow
     {
     }
 
+    public bool IsRunning => !IsExiting;
+
+    public void AttachControlPanel(ControlPanelWindow controlPanelWindow)
+    {
+        _controlPanelWindow = controlPanelWindow;
+        _focusControlWindowPending = true;
+    }
+
     protected override void OnLoad()
     {
         base.OnLoad();
         GL.ClearColor(new Color4(0f, 0f, 0.2f, 1f));
-        _imGuiController = new ImGuiController(ClientSize.X, ClientSize.Y, this);
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
 
         _visuals.Add(new SpectrumBars2d());
@@ -92,6 +101,7 @@ public class MinimalGameWindow : GameWindow
         _visuals.Add(new CameraFilterGrayscale());
         _visuals.Add(new CameraFilterEdgeDetection());
         _visuals.Add(new CameraSnapshotPeakHold());
+        _visuals.Add(new VisualPipeline());
 
         _selectedVisualIndex = Math.Min(1, _visuals.Count - 1); // Start on cube if available.
 
@@ -116,34 +126,48 @@ public class MinimalGameWindow : GameWindow
 
         var deltaTime = (float)args.Time;
 
-        _imGuiController!.Update(deltaTime);
-        _elapsedTime += args.Time;
-
-        _internalTempo.Update(deltaTime);
-        _abletonLink.Update(deltaTime);
-        _lfoEngine.Update(deltaTime, GetActiveBeatClock());
-
-        UpdateSpectrumData();
-        UpdateAudioModulationBins();
-        ApplyLfoToParameters();
-        HandleVisualHotkeys();
-
-        GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
-        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-        if (_visuals.Count > 0)
+        lock (_stateLock)
         {
-            _visuals[_selectedVisualIndex].Render(_latestSpectrum, (float)_elapsedTime);
+            _elapsedTime += args.Time;
+
+            _internalTempo.Update(deltaTime);
+            _abletonLink.Update(deltaTime);
+            _lfoEngine.Update(deltaTime, GetActiveBeatClock());
+
+            UpdateSpectrumData();
+            UpdateAudioModulationBins();
+            ApplyLfoToParameters();
+            HandleVisualHotkeys();
+
+            GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            if (_visuals.Count > 0)
+            {
+                _visuals[_selectedVisualIndex].Render(_latestSpectrum, (float)_elapsedTime);
+            }
         }
 
-        ImGui.NewFrame();
+        _controlPanelWindow?.ProcessEvents(0.0);
+        _controlPanelWindow?.RenderExternal(deltaTime);
 
-        DrawParametersWindow();
-        DrawLfoManagerWindow();
+        if (_focusControlWindowPending && _controlPanelWindow is not null)
+        {
+            _controlPanelWindow.Focus();
+            _focusControlWindowPending = false;
+        }
 
-        ImGui.Render();
-        _imGuiController.RenderDrawData(ImGui.GetDrawData());
-
+        MakeCurrent();
         SwapBuffers();
+    }
+
+    public void DrawControlUi()
+    {
+        lock (_stateLock)
+        {
+            DrawParametersWindow();
+            DrawVisualParametersWindow();
+            DrawLfoManagerWindow();
+        }
     }
 
     private void UpdateSpectrumData()
@@ -181,7 +205,7 @@ public class MinimalGameWindow : GameWindow
     private void DrawParametersWindow()
     {
         ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 12), ImGuiCond.Once);
-        ImGui.Begin("Parameters", ImGuiWindowFlags.AlwaysAutoResize);
+        ImGui.Begin("Visual", ImGuiWindowFlags.AlwaysAutoResize);
         ImGui.Text($"FPS: {ImGui.GetIO().Framerate:F1}");
 
         var activeVisualName = _visuals.Count > 0 ? _visuals[_selectedVisualIndex].Name : "None";
@@ -205,6 +229,19 @@ public class MinimalGameWindow : GameWindow
             ImGui.EndCombo();
         }
 
+        if (!string.IsNullOrWhiteSpace(_audioInitError))
+        {
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), $"Audio init failed: {_audioInitError}");
+        }
+
+        ImGui.End();
+    }
+
+    private void DrawVisualParametersWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 12), ImGuiCond.Once);
+        ImGui.Begin("Parameters", ImGuiWindowFlags.AlwaysAutoResize);
+
         if (_visuals.Count > 0)
         {
             var activeVisual = _visuals[_selectedVisualIndex];
@@ -216,13 +253,13 @@ public class MinimalGameWindow : GameWindow
                 DrawCameraControls(cameraVisual);
             }
 
+            if (activeVisual is IVisualEditorPanel visualEditorPanel)
+            {
+                visualEditorPanel.DrawEditorPanel();
+            }
+
             DrawAudioModulationControls();
             DrawLfoAssignmentMatrix(activeVisual, _selectedVisualIndex);
-        }
-
-        if (!string.IsNullOrWhiteSpace(_audioInitError))
-        {
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), $"Audio init failed: {_audioInitError}");
         }
 
         ImGui.End();
@@ -1011,7 +1048,6 @@ public class MinimalGameWindow : GameWindow
     {
         base.OnResize(e);
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
-        _imGuiController?.WindowResized(e.Width, e.Height);
     }
 
     protected override void OnUnload()
@@ -1023,7 +1059,6 @@ public class MinimalGameWindow : GameWindow
             visual.Dispose();
         }
 
-        _imGuiController?.Dispose();
         base.OnUnload();
     }
 }
@@ -1033,13 +1068,23 @@ public static class Program
     public static void Main()
     {
         var gameWindowSettings = GameWindowSettings.Default;
-        var nativeWindowSettings = new NativeWindowSettings
+
+        var outputWindowSettings = new NativeWindowSettings
         {
             ClientSize = new Vector2i(1280, 720),
-            Title = "macViz"
+            Title = "macViz - Output"
         };
 
-        using var window = new MinimalGameWindow(gameWindowSettings, nativeWindowSettings);
-        window.Run();
+        var controlSettings = new NativeWindowSettings
+        {
+            ClientSize = new Vector2i(1200, 900),
+            Title = "macViz - Controls"
+        };
+
+        using var outputWindow = new MinimalGameWindow(gameWindowSettings, outputWindowSettings);
+        using var controlWindow = new ControlPanelWindow(gameWindowSettings, controlSettings, outputWindow);
+        outputWindow.AttachControlPanel(controlWindow);
+
+        outputWindow.Run();
     }
 }
