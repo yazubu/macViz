@@ -44,6 +44,10 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         new(ColorShiftEffectStage.TypeIdValue, "Color Shift Effect", () => new ColorShiftEffectStage()),
         new(PixelateEffectStage.TypeIdValue, "Pixelate Effect", () => new PixelateEffectStage()),
         new(PosterizeEffectStage.TypeIdValue, "Posterize Effect", () => new PosterizeEffectStage()),
+        new(RadialBlurEffectStage.TypeIdValue, "Radial Blur Effect", () => new RadialBlurEffectStage()),
+        new(ZoomBlurEffectStage.TypeIdValue, "Zoom Blur Effect", () => new ZoomBlurEffectStage()),
+        new(MotionBlurEffectStage.TypeIdValue, "Motion Blur Effect", () => new MotionBlurEffectStage()),
+        new(ColorSwapEffectStage.TypeIdValue, "Color Swap Effect", () => new ColorSwapEffectStage()),
         new(KaleidoscopeEffectStage.TypeIdValue, "Kaleidoscope Effect", () => new KaleidoscopeEffectStage())
     ];
 
@@ -1440,6 +1444,461 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
             GL.UseProgram(_program);
             GL.Uniform1(_uLevels, _levels.CurrentValue);
             GL.Uniform1(_uGamma, _gamma.CurrentValue);
+            GL.Uniform1(_uMix, _mix.CurrentValue);
+
+            host.DrawFullscreen(_program, inputTexture);
+        }
+
+        public override void Dispose()
+        {
+            if (_program != 0)
+            {
+                GL.DeleteProgram(_program);
+                _program = 0;
+            }
+        }
+    }
+
+    private sealed class RadialBlurEffectStage : PipelineStage
+    {
+        public const string TypeIdValue = "effect.radialBlur";
+        private readonly Parameter<float> _centerX = new("Radial Blur Effect / Center X", 0f, 1f, 0.5f);
+        private readonly Parameter<float> _centerY = new("Radial Blur Effect / Center Y", 0f, 1f, 0.5f);
+        private readonly Parameter<float> _strength = new("Radial Blur Effect / Strength", 0f, 8f, 1.5f);
+        private readonly Parameter<int> _samples = new("Radial Blur Effect / Samples", 1, 48, 12);
+        private readonly Parameter<float> _mix = new("Radial Blur Effect / Mix", 0f, 1f, 1f);
+        private readonly IReadOnlyList<IParameter> _parameters;
+
+        private int _program;
+        private int _uTexture;
+        private int _uCenter;
+        private int _uStrength;
+        private int _uSamples;
+        private int _uMix;
+
+        public RadialBlurEffectStage()
+        {
+            _parameters = [_centerX, _centerY, _strength, _samples, _mix];
+        }
+
+        public override string TypeId => TypeIdValue;
+        public override string Name => "Radial Blur";
+        public override IReadOnlyList<IParameter> Parameters => _parameters;
+
+        public override void EnsureResources(VisualPipeline host)
+        {
+            if (_program != 0)
+            {
+                return;
+            }
+
+            const string vertex = """
+                #version 330 core
+                layout (location = 0) in vec2 aPosition;
+                layout (location = 1) in vec2 aUv;
+                out vec2 vUv;
+                void main()
+                {
+                    vUv = aUv;
+                    gl_Position = vec4(aPosition, 0.0, 1.0);
+                }
+                """;
+
+            const string fragment = """
+                #version 330 core
+                in vec2 vUv;
+                out vec4 fragColor;
+
+                uniform sampler2D uTexture;
+                uniform vec2 uCenter;
+                uniform float uStrength;
+                uniform int uSamples;
+                uniform float uMix;
+
+                const int MAX_SAMPLES = 64;
+
+                void main()
+                {
+                    vec3 original = texture(uTexture, vUv).rgb;
+                    vec2 p = vUv - uCenter;
+                    float radius = length(p);
+                    float baseAngle = atan(p.y, p.x);
+
+                    int sampleCount = clamp(uSamples, 1, MAX_SAMPLES);
+                    vec3 acc = vec3(0.0);
+
+                    for (int i = 0; i < MAX_SAMPLES; i++)
+                    {
+                        if (i >= sampleCount)
+                        {
+                            break;
+                        }
+
+                        float t = sampleCount <= 1 ? 0.0 : (float(i) / float(sampleCount - 1)) * 2.0 - 1.0;
+                        float angle = baseAngle + t * uStrength * radius * 0.25;
+                        vec2 uv = uCenter + vec2(cos(angle), sin(angle)) * radius;
+                        acc += texture(uTexture, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+                    }
+
+                    vec3 blurred = acc / float(sampleCount);
+                    vec3 color = mix(original, blurred, clamp(uMix, 0.0, 1.0));
+                    fragColor = vec4(color, 1.0);
+                }
+                """;
+
+            _program = CompileProgram(vertex, fragment);
+            _uTexture = GL.GetUniformLocation(_program, "uTexture");
+            _uCenter = GL.GetUniformLocation(_program, "uCenter");
+            _uStrength = GL.GetUniformLocation(_program, "uStrength");
+            _uSamples = GL.GetUniformLocation(_program, "uSamples");
+            _uMix = GL.GetUniformLocation(_program, "uMix");
+
+            GL.UseProgram(_program);
+            GL.Uniform1(_uTexture, 0);
+            GL.UseProgram(0);
+        }
+
+        public override void Render(VisualPipeline host, int inputTexture, float[] spectrum, float time)
+        {
+            GL.UseProgram(_program);
+            GL.Uniform2(_uCenter, _centerX.CurrentValue, _centerY.CurrentValue);
+            GL.Uniform1(_uStrength, _strength.CurrentValue);
+            GL.Uniform1(_uSamples, _samples.CurrentValue);
+            GL.Uniform1(_uMix, _mix.CurrentValue);
+
+            host.DrawFullscreen(_program, inputTexture);
+        }
+
+        public override void Dispose()
+        {
+            if (_program != 0)
+            {
+                GL.DeleteProgram(_program);
+                _program = 0;
+            }
+        }
+    }
+
+    private sealed class ZoomBlurEffectStage : PipelineStage
+    {
+        public const string TypeIdValue = "effect.zoomBlur";
+        private readonly Parameter<float> _centerX = new("Zoom Blur Effect / Center X", 0f, 1f, 0.5f);
+        private readonly Parameter<float> _centerY = new("Zoom Blur Effect / Center Y", 0f, 1f, 0.5f);
+        private readonly Parameter<float> _strength = new("Zoom Blur Effect / Strength", 0f, 2f, 0.35f);
+        private readonly Parameter<int> _samples = new("Zoom Blur Effect / Samples", 1, 48, 16);
+        private readonly Parameter<float> _mix = new("Zoom Blur Effect / Mix", 0f, 1f, 1f);
+        private readonly IReadOnlyList<IParameter> _parameters;
+
+        private int _program;
+        private int _uTexture;
+        private int _uCenter;
+        private int _uStrength;
+        private int _uSamples;
+        private int _uMix;
+
+        public ZoomBlurEffectStage()
+        {
+            _parameters = [_centerX, _centerY, _strength, _samples, _mix];
+        }
+
+        public override string TypeId => TypeIdValue;
+        public override string Name => "Zoom Blur";
+        public override IReadOnlyList<IParameter> Parameters => _parameters;
+
+        public override void EnsureResources(VisualPipeline host)
+        {
+            if (_program != 0)
+            {
+                return;
+            }
+
+            const string vertex = """
+                #version 330 core
+                layout (location = 0) in vec2 aPosition;
+                layout (location = 1) in vec2 aUv;
+                out vec2 vUv;
+                void main()
+                {
+                    vUv = aUv;
+                    gl_Position = vec4(aPosition, 0.0, 1.0);
+                }
+                """;
+
+            const string fragment = """
+                #version 330 core
+                in vec2 vUv;
+                out vec4 fragColor;
+
+                uniform sampler2D uTexture;
+                uniform vec2 uCenter;
+                uniform float uStrength;
+                uniform int uSamples;
+                uniform float uMix;
+
+                const int MAX_SAMPLES = 64;
+
+                void main()
+                {
+                    vec3 original = texture(uTexture, vUv).rgb;
+                    vec2 dir = vUv - uCenter;
+
+                    int sampleCount = clamp(uSamples, 1, MAX_SAMPLES);
+                    vec3 acc = vec3(0.0);
+
+                    for (int i = 0; i < MAX_SAMPLES; i++)
+                    {
+                        if (i >= sampleCount)
+                        {
+                            break;
+                        }
+
+                        float t = sampleCount <= 1 ? 0.0 : float(i) / float(sampleCount - 1);
+                        vec2 uv = vUv - dir * t * uStrength;
+                        acc += texture(uTexture, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+                    }
+
+                    vec3 blurred = acc / float(sampleCount);
+                    vec3 color = mix(original, blurred, clamp(uMix, 0.0, 1.0));
+                    fragColor = vec4(color, 1.0);
+                }
+                """;
+
+            _program = CompileProgram(vertex, fragment);
+            _uTexture = GL.GetUniformLocation(_program, "uTexture");
+            _uCenter = GL.GetUniformLocation(_program, "uCenter");
+            _uStrength = GL.GetUniformLocation(_program, "uStrength");
+            _uSamples = GL.GetUniformLocation(_program, "uSamples");
+            _uMix = GL.GetUniformLocation(_program, "uMix");
+
+            GL.UseProgram(_program);
+            GL.Uniform1(_uTexture, 0);
+            GL.UseProgram(0);
+        }
+
+        public override void Render(VisualPipeline host, int inputTexture, float[] spectrum, float time)
+        {
+            GL.UseProgram(_program);
+            GL.Uniform2(_uCenter, _centerX.CurrentValue, _centerY.CurrentValue);
+            GL.Uniform1(_uStrength, _strength.CurrentValue);
+            GL.Uniform1(_uSamples, _samples.CurrentValue);
+            GL.Uniform1(_uMix, _mix.CurrentValue);
+
+            host.DrawFullscreen(_program, inputTexture);
+        }
+
+        public override void Dispose()
+        {
+            if (_program != 0)
+            {
+                GL.DeleteProgram(_program);
+                _program = 0;
+            }
+        }
+    }
+
+    private sealed class MotionBlurEffectStage : PipelineStage
+    {
+        public const string TypeIdValue = "effect.motionBlur";
+        private readonly Parameter<float> _directionRadians = new("Motion Blur Effect / Direction (rad)", -6.28319f, 6.28319f, 0f);
+        private readonly Parameter<float> _distancePixels = new("Motion Blur Effect / Distance (px)", 0f, 256f, 24f);
+        private readonly Parameter<int> _samples = new("Motion Blur Effect / Samples", 1, 48, 12);
+        private readonly Parameter<float> _mix = new("Motion Blur Effect / Mix", 0f, 1f, 1f);
+        private readonly IReadOnlyList<IParameter> _parameters;
+
+        private int _program;
+        private int _uTexture;
+        private int _uDirectionRadians;
+        private int _uDistancePixels;
+        private int _uSamples;
+        private int _uMix;
+
+        public MotionBlurEffectStage()
+        {
+            _parameters = [_directionRadians, _distancePixels, _samples, _mix];
+        }
+
+        public override string TypeId => TypeIdValue;
+        public override string Name => "Motion Blur";
+        public override IReadOnlyList<IParameter> Parameters => _parameters;
+
+        public override void EnsureResources(VisualPipeline host)
+        {
+            if (_program != 0)
+            {
+                return;
+            }
+
+            const string vertex = """
+                #version 330 core
+                layout (location = 0) in vec2 aPosition;
+                layout (location = 1) in vec2 aUv;
+                out vec2 vUv;
+                void main()
+                {
+                    vUv = aUv;
+                    gl_Position = vec4(aPosition, 0.0, 1.0);
+                }
+                """;
+
+            const string fragment = """
+                #version 330 core
+                in vec2 vUv;
+                out vec4 fragColor;
+
+                uniform sampler2D uTexture;
+                uniform float uDirectionRadians;
+                uniform float uDistancePixels;
+                uniform int uSamples;
+                uniform float uMix;
+
+                const int MAX_SAMPLES = 64;
+
+                void main()
+                {
+                    vec3 original = texture(uTexture, vUv).rgb;
+
+                    vec2 texSize = vec2(textureSize(uTexture, 0));
+                    vec2 texel = 1.0 / max(texSize, vec2(1.0));
+                    vec2 dir = vec2(cos(uDirectionRadians), sin(uDirectionRadians));
+                    vec2 motion = dir * uDistancePixels * texel;
+
+                    int sampleCount = clamp(uSamples, 1, MAX_SAMPLES);
+                    vec3 acc = vec3(0.0);
+
+                    for (int i = 0; i < MAX_SAMPLES; i++)
+                    {
+                        if (i >= sampleCount)
+                        {
+                            break;
+                        }
+
+                        float t = sampleCount <= 1 ? 0.0 : (float(i) / float(sampleCount - 1)) * 2.0 - 1.0;
+                        vec2 uv = vUv + motion * t;
+                        acc += texture(uTexture, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
+                    }
+
+                    vec3 blurred = acc / float(sampleCount);
+                    vec3 color = mix(original, blurred, clamp(uMix, 0.0, 1.0));
+                    fragColor = vec4(color, 1.0);
+                }
+                """;
+
+            _program = CompileProgram(vertex, fragment);
+            _uTexture = GL.GetUniformLocation(_program, "uTexture");
+            _uDirectionRadians = GL.GetUniformLocation(_program, "uDirectionRadians");
+            _uDistancePixels = GL.GetUniformLocation(_program, "uDistancePixels");
+            _uSamples = GL.GetUniformLocation(_program, "uSamples");
+            _uMix = GL.GetUniformLocation(_program, "uMix");
+
+            GL.UseProgram(_program);
+            GL.Uniform1(_uTexture, 0);
+            GL.UseProgram(0);
+        }
+
+        public override void Render(VisualPipeline host, int inputTexture, float[] spectrum, float time)
+        {
+            GL.UseProgram(_program);
+            GL.Uniform1(_uDirectionRadians, _directionRadians.CurrentValue);
+            GL.Uniform1(_uDistancePixels, _distancePixels.CurrentValue);
+            GL.Uniform1(_uSamples, _samples.CurrentValue);
+            GL.Uniform1(_uMix, _mix.CurrentValue);
+
+            host.DrawFullscreen(_program, inputTexture);
+        }
+
+        public override void Dispose()
+        {
+            if (_program != 0)
+            {
+                GL.DeleteProgram(_program);
+                _program = 0;
+            }
+        }
+    }
+
+    private sealed class ColorSwapEffectStage : PipelineStage
+    {
+        public const string TypeIdValue = "effect.colorSwap";
+        private readonly Parameter<int> _mode = new("Color Swap Effect / Mode", 0, 5, 0);
+        private readonly Parameter<float> _mix = new("Color Swap Effect / Mix", 0f, 1f, 1f);
+        private readonly IReadOnlyList<IParameter> _parameters;
+
+        private int _program;
+        private int _uTexture;
+        private int _uMode;
+        private int _uMix;
+
+        public ColorSwapEffectStage()
+        {
+            _parameters = [_mode, _mix];
+        }
+
+        public override string TypeId => TypeIdValue;
+        public override string Name => "Color Swap";
+        public override IReadOnlyList<IParameter> Parameters => _parameters;
+
+        public override void EnsureResources(VisualPipeline host)
+        {
+            if (_program != 0)
+            {
+                return;
+            }
+
+            const string vertex = """
+                #version 330 core
+                layout (location = 0) in vec2 aPosition;
+                layout (location = 1) in vec2 aUv;
+                out vec2 vUv;
+                void main()
+                {
+                    vUv = aUv;
+                    gl_Position = vec4(aPosition, 0.0, 1.0);
+                }
+                """;
+
+            const string fragment = """
+                #version 330 core
+                in vec2 vUv;
+                out vec4 fragColor;
+
+                uniform sampler2D uTexture;
+                uniform int uMode;
+                uniform float uMix;
+
+                vec3 swapChannels(vec3 c, int mode)
+                {
+                    if (mode == 1) return c.rbg;
+                    if (mode == 2) return c.grb;
+                    if (mode == 3) return c.gbr;
+                    if (mode == 4) return c.brg;
+                    if (mode == 5) return c.bgr;
+                    return c.rgb;
+                }
+
+                void main()
+                {
+                    vec3 original = texture(uTexture, vUv).rgb;
+                    int mode = clamp(uMode, 0, 5);
+                    vec3 swapped = swapChannels(original, mode);
+                    vec3 color = mix(original, swapped, clamp(uMix, 0.0, 1.0));
+                    fragColor = vec4(color, 1.0);
+                }
+                """;
+
+            _program = CompileProgram(vertex, fragment);
+            _uTexture = GL.GetUniformLocation(_program, "uTexture");
+            _uMode = GL.GetUniformLocation(_program, "uMode");
+            _uMix = GL.GetUniformLocation(_program, "uMix");
+
+            GL.UseProgram(_program);
+            GL.Uniform1(_uTexture, 0);
+            GL.UseProgram(0);
+        }
+
+        public override void Render(VisualPipeline host, int inputTexture, float[] spectrum, float time)
+        {
+            GL.UseProgram(_program);
+            GL.Uniform1(_uMode, _mode.CurrentValue);
             GL.Uniform1(_uMix, _mix.CurrentValue);
 
             host.DrawFullscreen(_program, inputTexture);
