@@ -59,9 +59,9 @@ public class MinimalGameWindow : GameWindow
 
     private int _selectedVisualIndex;
     private int _selectedParameterIndex;
-    private readonly Dictionary<(int VisualIndex, int ParamIndex, int LfoId), LfoModulation> _modulationMatrix = new();
-    private readonly Dictionary<(int VisualIndex, int ParamIndex, int FftId), AudioModulation> _audioModulationMatrix = new();
-    private readonly Dictionary<(int VisualIndex, int ParamIndex), ModulationInteractionMode> _lfoFftInteractionModes = new();
+    private readonly Dictionary<(IParameter Parameter, int LfoId), LfoModulation> _modulationMatrix = new();
+    private readonly Dictionary<(IParameter Parameter, int FftId), AudioModulation> _audioModulationMatrix = new();
+    private readonly Dictionary<IParameter, ModulationInteractionMode> _lfoFftInteractionModes = new();
     private readonly List<FftModSource> _fftSources = [];
     private int _nextFftSourceId = 1;
 
@@ -136,6 +136,7 @@ public class MinimalGameWindow : GameWindow
 
             UpdateSpectrumData();
             UpdateAudioModulationBins();
+            PruneOrphanedParameterAssignments();
             ApplyLfoToParameters();
             HandleVisualHotkeys();
 
@@ -259,7 +260,7 @@ public class MinimalGameWindow : GameWindow
             }
 
             DrawAudioModulationControls();
-            DrawLfoAssignmentMatrix(activeVisual, _selectedVisualIndex);
+            DrawLfoAssignmentMatrix(activeVisual);
         }
 
         ImGui.End();
@@ -601,7 +602,7 @@ public class MinimalGameWindow : GameWindow
         }
     }
 
-    private void DrawLfoAssignmentMatrix(IVisual visual, int visualIndex)
+    private void DrawLfoAssignmentMatrix(IVisual visual)
     {
         ImGui.Text("Mod Matrix");
         ImGui.TextDisabled("Assigned source output multiplies the base parameter value.");
@@ -637,9 +638,8 @@ public class MinimalGameWindow : GameWindow
             ImGui.Text(parameter.Name);
 
             ImGui.TableSetColumnIndex(1);
-            ImGui.PushID($"mode_{visualIndex}_{row}");
-            var interactionKey = (visualIndex, row);
-            var interactionMode = _lfoFftInteractionModes.GetValueOrDefault(interactionKey, ModulationInteractionMode.Add);
+            ImGui.PushID($"mode_{row}");
+            var interactionMode = _lfoFftInteractionModes.GetValueOrDefault(parameter, ModulationInteractionMode.Add);
             if (ImGui.BeginCombo("##interaction", interactionMode.ToString()))
             {
                 foreach (ModulationInteractionMode candidate in Enum.GetValues<ModulationInteractionMode>())
@@ -647,7 +647,7 @@ public class MinimalGameWindow : GameWindow
                     var isSelected = candidate == interactionMode;
                     if (ImGui.Selectable(candidate.ToString(), isSelected))
                     {
-                        _lfoFftInteractionModes[interactionKey] = candidate;
+                        _lfoFftInteractionModes[parameter] = candidate;
                         interactionMode = candidate;
                     }
 
@@ -665,9 +665,9 @@ public class MinimalGameWindow : GameWindow
             for (var fftCol = 0; fftCol < _fftSources.Count; fftCol++)
             {
                 var fft = _fftSources[fftCol];
-                var audioKey = (visualIndex, row, fft.Id);
+                var audioKey = (parameter, fft.Id);
                 ImGui.TableSetColumnIndex(fftCol + 2);
-                ImGui.PushID($"fft_cell_{visualIndex}_{row}_{fft.Id}");
+                ImGui.PushID($"fft_cell_{row}_{fft.Id}");
 
                 var fftAssigned = _audioModulationMatrix.TryGetValue(audioKey, out var audioMod);
                 if (ImGui.Checkbox("Assign", ref fftAssigned))
@@ -736,10 +736,10 @@ public class MinimalGameWindow : GameWindow
             for (var lfoCol = 0; lfoCol < _lfoEngine.Lfos.Count; lfoCol++)
             {
                 var lfo = _lfoEngine.Lfos[lfoCol];
-                var key = (visualIndex, row, lfo.Id);
+                var key = (parameter, lfo.Id);
 
                 ImGui.TableSetColumnIndex(lfoCol + 2 + _fftSources.Count);
-                ImGui.PushID($"cell_{visualIndex}_{row}_{lfo.Id}");
+                ImGui.PushID($"cell_{row}_{lfo.Id}");
 
                 var assigned = _modulationMatrix.TryGetValue(key, out var modulation);
                 if (ImGui.Checkbox("Assign", ref assigned))
@@ -867,9 +867,8 @@ public class MinimalGameWindow : GameWindow
 
     private void ApplyLfoToParameters()
     {
-        for (var visualIndex = 0; visualIndex < _visuals.Count; visualIndex++)
+        foreach (var visual in _visuals)
         {
-            var visual = _visuals[visualIndex];
             for (var paramIndex = 0; paramIndex < visual.Parameters.Count; paramIndex++)
             {
                 var parameter = visual.Parameters[paramIndex];
@@ -878,7 +877,7 @@ public class MinimalGameWindow : GameWindow
                 var hasLfo = false;
                 foreach (var lfo in _lfoEngine.Lfos)
                 {
-                    var key = (visualIndex, paramIndex, lfo.Id);
+                    var key = (parameter, lfo.Id);
                     if (!_modulationMatrix.TryGetValue(key, out var modulation) ||
                         !_lfoEngine.TryGetOutput(lfo.Id, out var lfoValue))
                     {
@@ -893,7 +892,7 @@ public class MinimalGameWindow : GameWindow
                 var hasFft = false;
                 foreach (var fft in _fftSources)
                 {
-                    var audioKey = (visualIndex, paramIndex, fft.Id);
+                    var audioKey = (parameter, fft.Id);
                     if (!_audioModulationMatrix.TryGetValue(audioKey, out var audioMod))
                     {
                         continue;
@@ -907,7 +906,7 @@ public class MinimalGameWindow : GameWindow
                 var modulationFactor = 1f;
                 if (hasLfo && hasFft)
                 {
-                    var mode = _lfoFftInteractionModes.GetValueOrDefault((visualIndex, paramIndex), ModulationInteractionMode.Add);
+                    var mode = _lfoFftInteractionModes.GetValueOrDefault(parameter, ModulationInteractionMode.Add);
                     modulationFactor = mode switch
                     {
                         ModulationInteractionMode.Instead => fftSum,
@@ -928,6 +927,36 @@ public class MinimalGameWindow : GameWindow
 
                 parameter.ApplyCombinedModulation(modulationFactor);
             }
+        }
+    }
+
+    private void PruneOrphanedParameterAssignments()
+    {
+        var liveParameters = new HashSet<IParameter>();
+        foreach (var visual in _visuals)
+        {
+            foreach (var parameter in visual.Parameters)
+            {
+                liveParameters.Add(parameter);
+            }
+        }
+
+        var lfoKeysToRemove = _modulationMatrix.Keys.Where(k => !liveParameters.Contains(k.Parameter)).ToArray();
+        foreach (var key in lfoKeysToRemove)
+        {
+            _modulationMatrix.Remove(key);
+        }
+
+        var fftKeysToRemove = _audioModulationMatrix.Keys.Where(k => !liveParameters.Contains(k.Parameter)).ToArray();
+        foreach (var key in fftKeysToRemove)
+        {
+            _audioModulationMatrix.Remove(key);
+        }
+
+        var modeKeysToRemove = _lfoFftInteractionModes.Keys.Where(k => !liveParameters.Contains(k)).ToArray();
+        foreach (var key in modeKeysToRemove)
+        {
+            _lfoFftInteractionModes.Remove(key);
         }
     }
 
