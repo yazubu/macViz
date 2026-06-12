@@ -26,15 +26,43 @@ public class MinimalGameWindow : GameWindow
         ("4:1", 4f)
     ];
 
+    private enum ModulationInteractionMode
+    {
+        Instead,
+        Add,
+        Subtract,
+        Multiply
+    }
+
     private sealed class LfoModulation
     {
         public float Scale = 1f;
         public float Offset;
     }
 
+    private sealed class AudioModulation
+    {
+        public float Scale = 1f;
+        public float Offset;
+        public int AudioBinIndex;
+    }
+
+    private sealed class FftModSource
+    {
+        public int Id;
+        public int BinCount = 8;
+        public float Smoothing = 0.75f;
+        public float[] SmoothedBins = new float[8];
+    }
+
     private int _selectedVisualIndex;
     private int _selectedParameterIndex;
     private readonly Dictionary<(int VisualIndex, int ParamIndex, int LfoId), LfoModulation> _modulationMatrix = new();
+    private readonly Dictionary<(int VisualIndex, int ParamIndex, int FftId), AudioModulation> _audioModulationMatrix = new();
+    private readonly Dictionary<(int VisualIndex, int ParamIndex), ModulationInteractionMode> _lfoFftInteractionModes = new();
+    private readonly List<FftModSource> _fftSources = [];
+    private int _nextFftSourceId = 1;
+
     private bool _tabWasDown;
     private bool _leftWasDown;
     private bool _rightWasDown;
@@ -66,6 +94,8 @@ public class MinimalGameWindow : GameWindow
 
         _selectedVisualIndex = Math.Min(1, _visuals.Count - 1); // Start on cube if available.
 
+        AddFftSource();
+
         _abletonLink.Initialize(_internalTempo.Bpm);
 
         try
@@ -91,9 +121,10 @@ public class MinimalGameWindow : GameWindow
         _internalTempo.Update(deltaTime);
         _abletonLink.Update(deltaTime);
         _lfoEngine.Update(deltaTime, GetActiveBeatClock());
-        ApplyLfoToParameters();
 
         UpdateSpectrumData();
+        UpdateAudioModulationBins();
+        ApplyLfoToParameters();
         HandleVisualHotkeys();
 
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
@@ -184,6 +215,7 @@ public class MinimalGameWindow : GameWindow
                 DrawCameraControls(cameraVisual);
             }
 
+            DrawAudioModulationControls();
             DrawLfoAssignmentMatrix(activeVisual, _selectedVisualIndex);
         }
 
@@ -250,6 +282,49 @@ public class MinimalGameWindow : GameWindow
 
         ImGui.SameLine();
         ImGui.Text($"Count: {_lfoEngine.Lfos.Count}");
+
+        if (ImGui.Button("Add FFT Source"))
+        {
+            AddFftSource();
+        }
+
+        ImGui.SameLine();
+        ImGui.Text($"FFT Sources: {_fftSources.Count}");
+
+        for (var i = 0; i < _fftSources.Count; i++)
+        {
+            var source = _fftSources[i];
+            ImGui.PushID($"fft_src_mgr_{source.Id}");
+            if (ImGui.TreeNode($"FFT Source {source.Id}"))
+            {
+                var bins = source.BinCount;
+                if (ImGui.SliderInt("Bins", ref bins, 1, 64))
+                {
+                    source.BinCount = bins;
+                    Array.Resize(ref source.SmoothedBins, source.BinCount);
+                    SanitizeAudioBinAssignments();
+                }
+
+                var smoothing = source.Smoothing;
+                if (ImGui.SliderFloat("Smoothing", ref smoothing, 0f, 0.99f, "%.2f"))
+                {
+                    source.Smoothing = Math.Clamp(smoothing, 0f, 0.99f);
+                }
+
+                if (ImGui.Button("Remove FFT Source"))
+                {
+                    var removeId = source.Id;
+                    ImGui.TreePop();
+                    ImGui.PopID();
+                    RemoveFftSourceAndAssignments(removeId);
+                    break;
+                }
+
+                ImGui.TreePop();
+            }
+
+            ImGui.PopID();
+        }
 
         for (var i = 0; i < _lfoEngine.Lfos.Count; i++)
         {
@@ -455,24 +530,59 @@ public class MinimalGameWindow : GameWindow
         ImGui.TextDisabled(cameraVisual.CameraStatus);
     }
 
-    private void DrawLfoAssignmentMatrix(IVisual visual, int visualIndex)
+    private void DrawAudioModulationControls()
     {
-        ImGui.Text("Mod Matrix");
+        ImGui.Separator();
+        ImGui.Text("Audio Modulation (FFT)");
+        ImGui.TextDisabled("Each FFT source has independent bin count and smoothing.");
 
-        if (_lfoEngine.Lfos.Count == 0)
+        if (_fftSources.Count == 0)
         {
-            ImGui.TextDisabled("Add an LFO to assign modulation.");
+            ImGui.TextDisabled("Add FFT Source in LFO Manager.");
             return;
         }
 
-        var columns = 1 + _lfoEngine.Lfos.Count;
+        for (var i = 0; i < _fftSources.Count; i++)
+        {
+            var source = _fftSources[i];
+            ImGui.PushID($"fft_preview_src_{source.Id}");
+
+            if (ImGui.TreeNode($"FFT Source {source.Id} Preview"))
+            {
+                ImGui.TextDisabled($"Bins: {source.BinCount} | Smoothing: {source.Smoothing:F2}");
+                for (var bin = 0; bin < source.SmoothedBins.Length; bin++)
+                {
+                    var value = source.SmoothedBins[bin];
+                    ImGui.ProgressBar(value, new System.Numerics.Vector2(140, 0), $"Bin {bin + 1}: {value:F2}");
+                }
+
+                ImGui.TreePop();
+            }
+
+            ImGui.PopID();
+        }
+    }
+
+    private void DrawLfoAssignmentMatrix(IVisual visual, int visualIndex)
+    {
+        ImGui.Text("Mod Matrix");
+        ImGui.TextDisabled("Assigned source output multiplies the base parameter value.");
+
+        var columns = 2 + _fftSources.Count + _lfoEngine.Lfos.Count;
         var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollX;
-        if (!ImGui.BeginTable("LfoModMatrix", columns, flags, new System.Numerics.Vector2(780, 260)))
+        if (!ImGui.BeginTable("LfoModMatrix", columns, flags, new System.Numerics.Vector2(1100, 320)))
         {
             return;
         }
 
         ImGui.TableSetupColumn("Parameter", ImGuiTableColumnFlags.WidthFixed, 160);
+        ImGui.TableSetupColumn("LFO↔FFT", ImGuiTableColumnFlags.WidthFixed, 130);
+
+        foreach (var fft in _fftSources)
+        {
+            ImGui.TableSetupColumn($"FFT {fft.Id}", ImGuiTableColumnFlags.WidthFixed, 220);
+        }
+
         foreach (var lfo in _lfoEngine.Lfos)
         {
             ImGui.TableSetupColumn($"LFO {lfo.Id}", ImGuiTableColumnFlags.WidthFixed, 170);
@@ -488,12 +598,109 @@ public class MinimalGameWindow : GameWindow
             ImGui.TableSetColumnIndex(0);
             ImGui.Text(parameter.Name);
 
+            ImGui.TableSetColumnIndex(1);
+            ImGui.PushID($"mode_{visualIndex}_{row}");
+            var interactionKey = (visualIndex, row);
+            var interactionMode = _lfoFftInteractionModes.GetValueOrDefault(interactionKey, ModulationInteractionMode.Add);
+            if (ImGui.BeginCombo("##interaction", interactionMode.ToString()))
+            {
+                foreach (ModulationInteractionMode candidate in Enum.GetValues<ModulationInteractionMode>())
+                {
+                    var isSelected = candidate == interactionMode;
+                    if (ImGui.Selectable(candidate.ToString(), isSelected))
+                    {
+                        _lfoFftInteractionModes[interactionKey] = candidate;
+                        interactionMode = candidate;
+                    }
+
+                    if (isSelected)
+                    {
+                        ImGui.SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+
+            ImGui.PopID();
+
+            for (var fftCol = 0; fftCol < _fftSources.Count; fftCol++)
+            {
+                var fft = _fftSources[fftCol];
+                var audioKey = (visualIndex, row, fft.Id);
+                ImGui.TableSetColumnIndex(fftCol + 2);
+                ImGui.PushID($"fft_cell_{visualIndex}_{row}_{fft.Id}");
+
+                var fftAssigned = _audioModulationMatrix.TryGetValue(audioKey, out var audioMod);
+                if (ImGui.Checkbox("Assign", ref fftAssigned))
+                {
+                    if (fftAssigned)
+                    {
+                        _audioModulationMatrix[audioKey] = audioMod ?? new AudioModulation();
+                    }
+                    else
+                    {
+                        _audioModulationMatrix.Remove(audioKey);
+                    }
+                }
+
+                if (fftAssigned)
+                {
+                    audioMod ??= new AudioModulation();
+                    _audioModulationMatrix[audioKey] = audioMod;
+
+                    if (audioMod.AudioBinIndex >= fft.BinCount)
+                    {
+                        audioMod.AudioBinIndex = Math.Max(0, fft.BinCount - 1);
+                    }
+
+                    var currentBinLabel = $"Bin {audioMod.AudioBinIndex + 1}";
+                    if (ImGui.BeginCombo("##fftBin", currentBinLabel))
+                    {
+                        for (var bin = 0; bin < fft.BinCount; bin++)
+                        {
+                            var isSelected = bin == audioMod.AudioBinIndex;
+                            if (ImGui.Selectable($"Bin {bin + 1}", isSelected))
+                            {
+                                audioMod.AudioBinIndex = bin;
+                            }
+
+                            if (isSelected)
+                            {
+                                ImGui.SetItemDefaultFocus();
+                            }
+                        }
+
+                        ImGui.EndCombo();
+                    }
+
+                    var audioScale = audioMod.Scale;
+                    ImGui.SetNextItemWidth(170);
+                    if (ImGui.SliderFloat("##fftScale", ref audioScale, 0f, 2f, "Scale %.2f"))
+                    {
+                        audioMod.Scale = audioScale;
+                    }
+
+                    var audioOffset = audioMod.Offset;
+                    ImGui.SetNextItemWidth(170);
+                    if (ImGui.SliderFloat("##fftOffset", ref audioOffset, -1f, 1f, "Offset %.2f"))
+                    {
+                        audioMod.Offset = audioOffset;
+                    }
+
+                    var binValue = GetAudioBinValue(fft.Id, audioMod.AudioBinIndex);
+                    ImGui.TextDisabled($"FFT: {binValue:F2}");
+                }
+
+                ImGui.PopID();
+            }
+
             for (var lfoCol = 0; lfoCol < _lfoEngine.Lfos.Count; lfoCol++)
             {
                 var lfo = _lfoEngine.Lfos[lfoCol];
                 var key = (visualIndex, row, lfo.Id);
 
-                ImGui.TableSetColumnIndex(lfoCol + 1);
+                ImGui.TableSetColumnIndex(lfoCol + 2 + _fftSources.Count);
                 ImGui.PushID($"cell_{visualIndex}_{row}_{lfo.Id}");
 
                 var assigned = _modulationMatrix.TryGetValue(key, out var modulation);
@@ -628,21 +835,165 @@ public class MinimalGameWindow : GameWindow
             for (var paramIndex = 0; paramIndex < visual.Parameters.Count; paramIndex++)
             {
                 var parameter = visual.Parameters[paramIndex];
-                var modulationSum = 0f;
 
+                var lfoSum = 0f;
+                var hasLfo = false;
                 foreach (var lfo in _lfoEngine.Lfos)
                 {
                     var key = (visualIndex, paramIndex, lfo.Id);
-                    if (_modulationMatrix.TryGetValue(key, out var modulation) &&
-                        _lfoEngine.TryGetOutput(lfo.Id, out var lfoValue))
+                    if (!_modulationMatrix.TryGetValue(key, out var modulation) ||
+                        !_lfoEngine.TryGetOutput(lfo.Id, out var lfoValue))
                     {
-                        modulationSum += (lfoValue * modulation.Scale) + modulation.Offset;
+                        continue;
                     }
+
+                    lfoSum += (lfoValue * modulation.Scale) + modulation.Offset;
+                    hasLfo = true;
                 }
 
-                parameter.ApplyCombinedModulation(modulationSum);
+                var fftSum = 0f;
+                var hasFft = false;
+                foreach (var fft in _fftSources)
+                {
+                    var audioKey = (visualIndex, paramIndex, fft.Id);
+                    if (!_audioModulationMatrix.TryGetValue(audioKey, out var audioMod))
+                    {
+                        continue;
+                    }
+
+                    var audioValue = (GetAudioBinValue(fft.Id, audioMod.AudioBinIndex) * audioMod.Scale) + audioMod.Offset;
+                    fftSum += audioValue;
+                    hasFft = true;
+                }
+
+                var modulationFactor = 1f;
+                if (hasLfo && hasFft)
+                {
+                    var mode = _lfoFftInteractionModes.GetValueOrDefault((visualIndex, paramIndex), ModulationInteractionMode.Add);
+                    modulationFactor = mode switch
+                    {
+                        ModulationInteractionMode.Instead => fftSum,
+                        ModulationInteractionMode.Add => lfoSum + fftSum,
+                        ModulationInteractionMode.Subtract => lfoSum - fftSum,
+                        ModulationInteractionMode.Multiply => lfoSum * fftSum,
+                        _ => lfoSum + fftSum
+                    };
+                }
+                else if (hasLfo)
+                {
+                    modulationFactor = lfoSum;
+                }
+                else if (hasFft)
+                {
+                    modulationFactor = fftSum;
+                }
+
+                parameter.ApplyCombinedModulation(modulationFactor);
             }
         }
+    }
+
+    private void UpdateAudioModulationBins()
+    {
+        var srcBins = _latestSpectrum.Length;
+
+        foreach (var source in _fftSources)
+        {
+            if (source.BinCount <= 0)
+            {
+                source.BinCount = 1;
+            }
+
+            if (source.SmoothedBins.Length != source.BinCount)
+            {
+                Array.Resize(ref source.SmoothedBins, source.BinCount);
+            }
+
+            for (var outBin = 0; outBin < source.BinCount; outBin++)
+            {
+                var start = (outBin * srcBins) / source.BinCount;
+                var end = ((outBin + 1) * srcBins) / source.BinCount;
+                if (end <= start)
+                {
+                    end = Math.Min(srcBins, start + 1);
+                }
+
+                var sum = 0f;
+                var count = 0;
+                for (var i = start; i < end; i++)
+                {
+                    sum += NormalizeSpectrumDb(_latestSpectrum[i]);
+                    count++;
+                }
+
+                var raw = count > 0 ? sum / count : 0f;
+                var smoothing = Math.Clamp(source.Smoothing, 0f, 0.99f);
+                source.SmoothedBins[outBin] = (source.SmoothedBins[outBin] * smoothing) + (raw * (1f - smoothing));
+            }
+        }
+    }
+
+    private float GetAudioBinValue(int fftId, int binIndex)
+    {
+        var source = _fftSources.FirstOrDefault(x => x.Id == fftId);
+        if (source is null || source.SmoothedBins.Length == 0)
+        {
+            return 0f;
+        }
+
+        var clamped = Math.Clamp(binIndex, 0, source.SmoothedBins.Length - 1);
+        return source.SmoothedBins[clamped];
+    }
+
+    private void AddFftSource()
+    {
+        var id = _nextFftSourceId++;
+        _fftSources.Add(new FftModSource
+        {
+            Id = id,
+            BinCount = 8,
+            Smoothing = 0.75f,
+            SmoothedBins = new float[8]
+        });
+    }
+
+    private void RemoveFftSourceAndAssignments(int fftId)
+    {
+        _fftSources.RemoveAll(x => x.Id == fftId);
+
+        var keysToRemove = _audioModulationMatrix.Keys.Where(k => k.FftId == fftId).ToArray();
+        foreach (var key in keysToRemove)
+        {
+            _audioModulationMatrix.Remove(key);
+        }
+    }
+
+    private void SanitizeAudioBinAssignments()
+    {
+        var sourceById = _fftSources.ToDictionary(x => x.Id, x => x);
+
+        var missingSourceKeys = _audioModulationMatrix.Keys.Where(k => !sourceById.ContainsKey(k.FftId)).ToArray();
+        foreach (var key in missingSourceKeys)
+        {
+            _audioModulationMatrix.Remove(key);
+        }
+
+        foreach (var entry in _audioModulationMatrix)
+        {
+            var source = sourceById[entry.Key.FftId];
+            if (entry.Value.AudioBinIndex >= source.BinCount)
+            {
+                entry.Value.AudioBinIndex = source.BinCount - 1;
+            }
+        }
+    }
+
+    private static float NormalizeSpectrumDb(float db)
+    {
+        const float minDb = -100f;
+        const float maxDb = 0f;
+        var normalized = (db - minDb) / (maxDb - minDb);
+        return Math.Clamp(normalized, 0f, 1f);
     }
 
     private static void FillFallbackSpectrum(float time, float[] spectrum)

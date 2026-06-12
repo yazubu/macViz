@@ -33,7 +33,7 @@ public sealed class Parameter<T> : IParameter where T : struct, IConvertible
         var min = Convert.ToSingle(Min);
         var max = Convert.ToSingle(Max);
 
-        var modulated = baseValue + modulationAmount;
+        var modulated = baseValue * modulationAmount;
         modulated = Math.Clamp(modulated, min, max);
 
         CurrentValue = FromFloat(modulated);
