@@ -2,10 +2,12 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace macViz;
 
-public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
+public sealed class CameraFilterEdgeDetection : IVisual, ICameraVisual
 {
-    private readonly Parameter<float> _intensity = new("Intensity", 0f, 1f, 1f);
-    private readonly Parameter<float> _threshold = new("Threshold", 0f, 1f, 0.45f);
+    private readonly Parameter<float> _edgeStrength = new("Edge Strength", 0f, 5f, 1.5f);
+    private readonly Parameter<float> _threshold = new("Threshold", 0f, 1f, 0.2f);
+    private readonly Parameter<float> _mix = new("Mix", 0f, 1f, 1f);
+    private readonly Parameter<float> _invert = new("Invert", 0f, 1f, 0f);
     private readonly IReadOnlyList<IParameter> _parameters;
 
     private CameraInput? _cameraInput;
@@ -19,19 +21,21 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
     private int _ebo;
 
     private int _uCameraTexture;
-    private int _uIntensity;
+    private int _uEdgeStrength;
     private int _uThreshold;
+    private int _uMix;
+    private int _uInvert;
 
-    public string Name => "Camera Filter (Grayscale)";
+    public string Name => "Camera Filter (Edge Detection)";
     public IReadOnlyList<IParameter> Parameters => _parameters;
 
     public IReadOnlyList<int> AvailableDeviceIndices => _deviceIndices;
     public int SelectedDeviceIndex => _selectedDeviceIndex;
     public string CameraStatus => _cameraStatus;
 
-    public CameraFilterGrayscale()
+    public CameraFilterEdgeDetection()
     {
-        _parameters = [_intensity, _threshold];
+        _parameters = [_edgeStrength, _threshold, _mix, _invert];
         RefreshDevices();
         CreateGlResources();
     }
@@ -85,8 +89,10 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         GL.BindTexture(TextureTarget.Texture2D, _cameraInput.TextureId);
 
         GL.Uniform1(_uCameraTexture, 0);
-        GL.Uniform1(_uIntensity, _intensity.CurrentValue);
+        GL.Uniform1(_uEdgeStrength, _edgeStrength.CurrentValue);
         GL.Uniform1(_uThreshold, _threshold.CurrentValue);
+        GL.Uniform1(_uMix, _mix.CurrentValue);
+        GL.Uniform1(_uInvert, _invert.CurrentValue);
 
         GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, 0);
 
@@ -152,18 +158,45 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
             out vec4 fragColor;
 
             uniform sampler2D uCameraTexture;
-            uniform float uIntensity;
+            uniform float uEdgeStrength;
             uniform float uThreshold;
+            uniform float uMix;
+            uniform float uInvert;
+
+            float lumaAt(vec2 uv)
+            {
+                vec3 c = texture(uCameraTexture, uv).rgb;
+                return dot(c, vec3(0.299, 0.587, 0.114));
+            }
 
             void main()
             {
-                vec3 color = texture(uCameraTexture, vUv).rgb;
-                float luma = dot(color, vec3(0.299, 0.587, 0.114));
+                vec3 original = texture(uCameraTexture, vUv).rgb;
 
-                float edge = smoothstep(max(0.0, uThreshold - 0.1), min(1.0, uThreshold + 0.1), luma);
-                vec3 gray = vec3(edge);
+                vec2 texSize = vec2(textureSize(uCameraTexture, 0));
+                vec2 texel = 1.0 / max(texSize, vec2(1.0));
 
-                vec3 finalColor = mix(color, gray, clamp(uIntensity, 0.0, 1.0));
+                float tl = lumaAt(vUv + vec2(-texel.x,  texel.y));
+                float tc = lumaAt(vUv + vec2( 0.0,      texel.y));
+                float tr = lumaAt(vUv + vec2( texel.x,  texel.y));
+                float ml = lumaAt(vUv + vec2(-texel.x,  0.0));
+                float mr = lumaAt(vUv + vec2( texel.x,  0.0));
+                float bl = lumaAt(vUv + vec2(-texel.x, -texel.y));
+                float bc = lumaAt(vUv + vec2( 0.0,     -texel.y));
+                float br = lumaAt(vUv + vec2( texel.x, -texel.y));
+
+                float gx = -tl + tr - 2.0 * ml + 2.0 * mr - bl + br;
+                float gy =  tl + 2.0 * tc + tr - bl - 2.0 * bc - br;
+
+                float edge = length(vec2(gx, gy));
+                edge *= max(uEdgeStrength, 0.0);
+
+                float t = clamp(uThreshold, 0.0, 1.0);
+                float edgeMask = smoothstep(t, min(1.0, t + 0.25), edge);
+                edgeMask = mix(edgeMask, 1.0 - edgeMask, clamp(uInvert, 0.0, 1.0));
+
+                vec3 edgeColor = vec3(edgeMask);
+                vec3 finalColor = mix(original, edgeColor, clamp(uMix, 0.0, 1.0));
                 fragColor = vec4(finalColor, 1.0);
             }
             """;
@@ -171,8 +204,10 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         _shader = CompileProgram(vertexSource, fragmentSource);
 
         _uCameraTexture = GL.GetUniformLocation(_shader, "uCameraTexture");
-        _uIntensity = GL.GetUniformLocation(_shader, "uIntensity");
+        _uEdgeStrength = GL.GetUniformLocation(_shader, "uEdgeStrength");
         _uThreshold = GL.GetUniformLocation(_shader, "uThreshold");
+        _uMix = GL.GetUniformLocation(_shader, "uMix");
+        _uInvert = GL.GetUniformLocation(_shader, "uInvert");
 
         var vertices = new float[]
         {
@@ -213,7 +248,7 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         GL.GetShader(vs, ShaderParameter.CompileStatus, out var vsOk);
         if (vsOk == 0)
         {
-            throw new InvalidOperationException($"CameraFilterGrayscale vertex shader compile failed: {GL.GetShaderInfoLog(vs)}");
+            throw new InvalidOperationException($"CameraFilterEdgeDetection vertex shader compile failed: {GL.GetShaderInfoLog(vs)}");
         }
 
         var fs = GL.CreateShader(ShaderType.FragmentShader);
@@ -222,7 +257,7 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         GL.GetShader(fs, ShaderParameter.CompileStatus, out var fsOk);
         if (fsOk == 0)
         {
-            throw new InvalidOperationException($"CameraFilterGrayscale fragment shader compile failed: {GL.GetShaderInfoLog(fs)}");
+            throw new InvalidOperationException($"CameraFilterEdgeDetection fragment shader compile failed: {GL.GetShaderInfoLog(fs)}");
         }
 
         var program = GL.CreateProgram();
@@ -232,7 +267,7 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out var linkOk);
         if (linkOk == 0)
         {
-            throw new InvalidOperationException($"CameraFilterGrayscale shader link failed: {GL.GetProgramInfoLog(program)}");
+            throw new InvalidOperationException($"CameraFilterEdgeDetection shader link failed: {GL.GetProgramInfoLog(program)}");
         }
 
         GL.DetachShader(program, vs);

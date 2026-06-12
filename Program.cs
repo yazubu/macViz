@@ -62,6 +62,7 @@ public class MinimalGameWindow : GameWindow
         _visuals.Add(new RotatingParticleSystem3D());
 
         _visuals.Add(new CameraFilterGrayscale());
+        _visuals.Add(new CameraFilterEdgeDetection());
 
         _selectedVisualIndex = Math.Min(1, _visuals.Count - 1); // Start on cube if available.
 
@@ -178,7 +179,7 @@ public class MinimalGameWindow : GameWindow
             HandleParameterKeyboardNavigation(activeVisual);
             DrawParameters(activeVisual);
 
-            if (activeVisual is CameraFilterGrayscale cameraVisual)
+            if (activeVisual is ICameraVisual cameraVisual)
             {
                 DrawCameraControls(cameraVisual);
             }
@@ -417,7 +418,7 @@ public class MinimalGameWindow : GameWindow
         ImGui.TextDisabled("Tab: next parameter | Shift+Tab: previous | Left/Right: adjust base value");
     }
 
-    private static void DrawCameraControls(CameraFilterGrayscale cameraVisual)
+    private static void DrawCameraControls(ICameraVisual cameraVisual)
     {
         ImGui.Separator();
         ImGui.Text("Camera");
