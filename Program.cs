@@ -274,7 +274,7 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawParametersWindow()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 12), ImGuiCond.Once);
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 12), ImGuiCond.FirstUseEver);
         ImGui.Begin("Visual", ImGuiWindowFlags.AlwaysAutoResize);
         ImGui.Text($"FPS: {ImGui.GetIO().Framerate:F1}");
 
@@ -309,7 +309,7 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawVisualParametersWindow()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 12), ImGuiCond.Once);
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 12), ImGuiCond.FirstUseEver);
         ImGui.Begin("Parameters", ImGuiWindowFlags.AlwaysAutoResize);
 
         if (_visuals.Count > 0)
@@ -324,7 +324,7 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawTempoManagementWindow()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 100), ImGuiCond.Once);
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 100), ImGuiCond.FirstUseEver);
         ImGui.Begin("Tempo Management", ImGuiWindowFlags.AlwaysAutoResize);
 
         var useLink = _preferAbletonLink;
@@ -349,6 +349,7 @@ public class MinimalGameWindow : GameWindow
         var activeClock = GetActiveBeatClock();
 
         var bpm = activeClock.Bpm;
+        ImGui.SetNextItemWidth(180);
         if (ImGui.SliderFloat("Tempo (BPM)", ref bpm, 60f, 160f, "%.1f"))
         {
             if (_preferAbletonLink && _abletonLink.IsAvailable)
@@ -374,7 +375,7 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawSettingsWindow()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 250), ImGuiCond.Once);
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 250), ImGuiCond.FirstUseEver);
         ImGui.Begin("Settings", ImGuiWindowFlags.AlwaysAutoResize);
 
         if (_visuals.Count > 0)
@@ -395,7 +396,7 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawModMatrixWindow()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 360), ImGuiCond.Once);
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 360), ImGuiCond.FirstUseEver);
         ImGui.Begin("Mod Matrix", ImGuiWindowFlags.AlwaysAutoResize);
 
         if (_visuals.Count > 0)
@@ -410,7 +411,7 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawPipelineWindow()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(1220, 12), ImGuiCond.Once);
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(1220, 12), ImGuiCond.FirstUseEver);
         ImGui.Begin("Pipeline", ImGuiWindowFlags.AlwaysAutoResize);
 
         if (_visuals.Count > 0)
@@ -436,8 +437,9 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawLfoManagerWindow()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 460), ImGuiCond.Once);
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 460), ImGuiCond.FirstUseEver);
         ImGui.Begin("LFO Manager", ImGuiWindowFlags.AlwaysAutoResize);
+        ImGui.PushItemWidth(170);
 
         if (ImGui.Button("Add LFO"))
         {
@@ -581,6 +583,7 @@ public class MinimalGameWindow : GameWindow
             ImGui.PopID();
         }
 
+        ImGui.PopItemWidth();
         ImGui.End();
     }
 
@@ -623,6 +626,7 @@ public class MinimalGameWindow : GameWindow
                 case Parameter<int> intParameter:
                 {
                     var value = intParameter.Value;
+                    ImGui.SetNextItemWidth(220);
                     if (ImGui.SliderInt(intParameter.Name, ref value, intParameter.Min, intParameter.Max))
                     {
                         intParameter.Value = value;
@@ -635,6 +639,7 @@ public class MinimalGameWindow : GameWindow
                 case Parameter<float> floatParameter:
                 {
                     var value = floatParameter.Value;
+                    ImGui.SetNextItemWidth(220);
                     if (ImGui.SliderFloat(floatParameter.Name, ref value, floatParameter.Min, floatParameter.Max))
                     {
                         floatParameter.Value = value;
@@ -838,14 +843,14 @@ public class MinimalGameWindow : GameWindow
                     }
 
                     var audioScale = audioMod.Scale;
-                    ImGui.SetNextItemWidth(170);
+                    ImGui.SetNextItemWidth(135);
                     if (ImGui.SliderFloat("##fftScale", ref audioScale, 0f, 2f, "Scale %.2f"))
                     {
                         audioMod.Scale = audioScale;
                     }
 
                     var audioOffset = audioMod.Offset;
-                    ImGui.SetNextItemWidth(170);
+                    ImGui.SetNextItemWidth(135);
                     if (ImGui.SliderFloat("##fftOffset", ref audioOffset, -1f, 1f, "Offset %.2f"))
                     {
                         audioMod.Offset = audioOffset;
@@ -885,14 +890,14 @@ public class MinimalGameWindow : GameWindow
                     _modulationMatrix[key] = modulation;
 
                     var scale = modulation.Scale;
-                    ImGui.SetNextItemWidth(150);
+                    ImGui.SetNextItemWidth(120);
                     if (ImGui.SliderFloat("##scale", ref scale, 0f, 2f, "Scale %.2f"))
                     {
                         modulation.Scale = scale;
                     }
 
                     var offset = modulation.Offset;
-                    ImGui.SetNextItemWidth(150);
+                    ImGui.SetNextItemWidth(120);
                     if (ImGui.SliderFloat("##offset", ref offset, -1f, 1f, "Offset %.2f"))
                     {
                         modulation.Offset = offset;

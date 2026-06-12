@@ -72,6 +72,7 @@ public sealed class ControlPanelWindow : GameWindow
 
     protected override void OnUnload()
     {
+        ImGui.SaveIniSettingsToDisk("imgui.ini");
         _imGuiController?.Dispose();
         base.OnUnload();
     }
