@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
@@ -57,6 +58,62 @@ public class MinimalGameWindow : GameWindow
         public float[] SmoothedBins = new float[8];
     }
 
+    private sealed class PipelinePresetBank
+    {
+        public List<PipelinePresetEntry> Presets { get; set; } = [];
+    }
+
+    private sealed class PipelinePresetEntry
+    {
+        public string Name { get; set; } = "Preset";
+        public VisualPipelinePresetState Pipeline { get; set; } = new();
+        public List<LfoStateDto> Lfos { get; set; } = [];
+        public List<FftSourceStateDto> FftSources { get; set; } = [];
+        public List<ParameterModStateDto> ParameterModulations { get; set; } = [];
+    }
+
+    private sealed class LfoStateDto
+    {
+        public int SourceId { get; set; }
+        public LfoWaveType WaveType { get; set; } = LfoWaveType.Sine;
+        public float Frequency { get; set; } = 1f;
+        public float Phase { get; set; }
+        public float DutyCycle { get; set; } = 0.5f;
+        public bool SyncEnabled { get; set; }
+        public float SyncSpeedMultiplier { get; set; } = 1f;
+    }
+
+    private sealed class FftSourceStateDto
+    {
+        public int SourceId { get; set; }
+        public int BinCount { get; set; } = 8;
+        public float Smoothing { get; set; } = 0.75f;
+    }
+
+    private sealed class LfoAssignmentDto
+    {
+        public int SourceId { get; set; }
+        public float Scale { get; set; } = 1f;
+        public float Offset { get; set; }
+    }
+
+    private sealed class FftAssignmentDto
+    {
+        public int SourceId { get; set; }
+        public int BinIndex { get; set; }
+        public float Scale { get; set; } = 1f;
+        public float Offset { get; set; }
+    }
+
+    private sealed class ParameterModStateDto
+    {
+        public int ParameterIndex { get; set; }
+        public string ParameterName { get; set; } = string.Empty;
+        public ModulationInteractionMode InteractionMode { get; set; } = ModulationInteractionMode.Add;
+        public List<LfoAssignmentDto> LfoAssignments { get; set; } = [];
+        public List<FftAssignmentDto> FftAssignments { get; set; } = [];
+    }
+
     private int _selectedVisualIndex;
     private int _selectedParameterIndex;
     private readonly Dictionary<(IParameter Parameter, int LfoId), LfoModulation> _modulationMatrix = new();
@@ -64,6 +121,13 @@ public class MinimalGameWindow : GameWindow
     private readonly Dictionary<IParameter, ModulationInteractionMode> _lfoFftInteractionModes = new();
     private readonly List<FftModSource> _fftSources = [];
     private int _nextFftSourceId = 1;
+
+    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private string _pipelinePresetFilePath = "pipeline-presets.json";
+    private string _newPipelinePresetName = "Default";
+    private int _selectedPipelinePresetIndex;
+    private PipelinePresetBank _pipelinePresetBank = new();
+    private string _pipelinePresetStatus = "No preset file loaded";
 
     private bool _tabWasDown;
     private bool _leftWasDown;
@@ -106,6 +170,7 @@ public class MinimalGameWindow : GameWindow
         _selectedVisualIndex = Math.Min(1, _visuals.Count - 1); // Start on cube if available.
 
         AddFftSource();
+        TryLoadPipelinePresetBankFromDisk();
 
         _abletonLink.Initialize(_internalTempo.Bpm);
 
@@ -167,7 +232,11 @@ public class MinimalGameWindow : GameWindow
         {
             DrawParametersWindow();
             DrawVisualParametersWindow();
+            DrawTempoManagementWindow();
+            DrawSettingsWindow();
             DrawLfoManagerWindow();
+            DrawModMatrixWindow();
+            DrawPipelineWindow();
         }
     }
 
@@ -248,28 +317,15 @@ public class MinimalGameWindow : GameWindow
             var activeVisual = _visuals[_selectedVisualIndex];
             HandleParameterKeyboardNavigation(activeVisual);
             DrawParameters(activeVisual);
-
-            if (activeVisual is ICameraVisual cameraVisual)
-            {
-                DrawCameraControls(cameraVisual);
-            }
-
-            if (activeVisual is IVisualEditorPanel visualEditorPanel)
-            {
-                visualEditorPanel.DrawEditorPanel();
-            }
-
-            DrawAudioModulationControls();
-            DrawLfoAssignmentMatrix(activeVisual);
         }
 
         ImGui.End();
     }
 
-    private void DrawLfoManagerWindow()
+    private void DrawTempoManagementWindow()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 330), ImGuiCond.Once);
-        ImGui.Begin("LFO Manager", ImGuiWindowFlags.AlwaysAutoResize);
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 100), ImGuiCond.Once);
+        ImGui.Begin("Tempo Management", ImGuiWindowFlags.AlwaysAutoResize);
 
         var useLink = _preferAbletonLink;
         var linkReady = _abletonLink.IsAvailable;
@@ -313,6 +369,75 @@ public class MinimalGameWindow : GameWindow
         ImGui.Text($"Beat {(activeClock.BeatNumber % 4) + 1}");
 
         ImGui.Text($"Link BPM: {_abletonLink.Bpm:F2} | Peers: {_abletonLink.NumPeers}");
+        ImGui.End();
+    }
+
+    private void DrawSettingsWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 250), ImGuiCond.Once);
+        ImGui.Begin("Settings", ImGuiWindowFlags.AlwaysAutoResize);
+
+        if (_visuals.Count > 0)
+        {
+            var activeVisual = _visuals[_selectedVisualIndex];
+            if (activeVisual is ICameraVisual cameraVisual)
+            {
+                DrawCameraControls(cameraVisual);
+            }
+            else
+            {
+                ImGui.TextDisabled("No camera settings for current visual.");
+            }
+        }
+
+        ImGui.End();
+    }
+
+    private void DrawModMatrixWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 360), ImGuiCond.Once);
+        ImGui.Begin("Mod Matrix", ImGuiWindowFlags.AlwaysAutoResize);
+
+        if (_visuals.Count > 0)
+        {
+            var activeVisual = _visuals[_selectedVisualIndex];
+            DrawAudioModulationControls();
+            DrawLfoAssignmentMatrix(activeVisual);
+        }
+
+        ImGui.End();
+    }
+
+    private void DrawPipelineWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(1220, 12), ImGuiCond.Once);
+        ImGui.Begin("Pipeline", ImGuiWindowFlags.AlwaysAutoResize);
+
+        if (_visuals.Count > 0)
+        {
+            var activeVisual = _visuals[_selectedVisualIndex];
+            if (activeVisual is IVisualEditorPanel visualEditorPanel)
+            {
+                visualEditorPanel.DrawEditorPanel();
+            }
+
+            if (activeVisual is VisualPipeline visualPipeline)
+            {
+                DrawPipelinePresetManager(visualPipeline);
+            }
+            else
+            {
+                ImGui.TextDisabled("Select 'Visual Pipeline' visual to edit pipeline stages/presets.");
+            }
+        }
+
+        ImGui.End();
+    }
+
+    private void DrawLfoManagerWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 460), ImGuiCond.Once);
+        ImGui.Begin("LFO Manager", ImGuiWindowFlags.AlwaysAutoResize);
 
         if (ImGui.Button("Add LFO"))
         {
@@ -779,6 +904,323 @@ public class MinimalGameWindow : GameWindow
         }
 
         ImGui.EndTable();
+    }
+
+    private void DrawPipelinePresetManager(VisualPipeline visualPipeline)
+    {
+        ImGui.Separator();
+        ImGui.Text("Pipeline Presets");
+
+        ImGui.SetNextItemWidth(420);
+        ImGui.InputText("Preset File", ref _pipelinePresetFilePath, 512);
+        if (ImGui.Button("Load Preset File"))
+        {
+            TryLoadPipelinePresetBankFromDisk();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Save Preset File"))
+        {
+            TrySavePipelinePresetBankToDisk();
+        }
+
+        ImGui.TextDisabled(_pipelinePresetStatus);
+
+        if (_pipelinePresetBank.Presets.Count > 0)
+        {
+            _selectedPipelinePresetIndex = Math.Clamp(_selectedPipelinePresetIndex, 0, _pipelinePresetBank.Presets.Count - 1);
+            var selectedName = _pipelinePresetBank.Presets[_selectedPipelinePresetIndex].Name;
+            if (ImGui.BeginCombo("Preset", selectedName))
+            {
+                for (var i = 0; i < _pipelinePresetBank.Presets.Count; i++)
+                {
+                    var selected = i == _selectedPipelinePresetIndex;
+                    if (ImGui.Selectable(_pipelinePresetBank.Presets[i].Name, selected))
+                    {
+                        _selectedPipelinePresetIndex = i;
+                        _newPipelinePresetName = _pipelinePresetBank.Presets[i].Name;
+                    }
+
+                    if (selected)
+                    {
+                        ImGui.SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+
+            if (ImGui.Button("Apply Selected"))
+            {
+                ApplyPipelinePreset(_pipelinePresetBank.Presets[_selectedPipelinePresetIndex], visualPipeline);
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Update Selected"))
+            {
+                var selectedPreset = _pipelinePresetBank.Presets[_selectedPipelinePresetIndex];
+                var replacement = CapturePipelinePreset(selectedPreset.Name, visualPipeline);
+                _pipelinePresetBank.Presets[_selectedPipelinePresetIndex] = replacement;
+                _pipelinePresetStatus = $"Updated preset '{replacement.Name}'.";
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Delete Selected"))
+            {
+                var removedName = _pipelinePresetBank.Presets[_selectedPipelinePresetIndex].Name;
+                _pipelinePresetBank.Presets.RemoveAt(_selectedPipelinePresetIndex);
+                if (_pipelinePresetBank.Presets.Count == 0)
+                {
+                    _selectedPipelinePresetIndex = 0;
+                }
+                else
+                {
+                    _selectedPipelinePresetIndex = Math.Clamp(_selectedPipelinePresetIndex, 0, _pipelinePresetBank.Presets.Count - 1);
+                }
+
+                _pipelinePresetStatus = $"Deleted preset '{removedName}'.";
+            }
+        }
+        else
+        {
+            ImGui.TextDisabled("No presets in file.");
+        }
+
+        ImGui.SetNextItemWidth(320);
+        ImGui.InputText("Preset Name", ref _newPipelinePresetName, 128);
+        if (ImGui.Button("Capture As New Preset"))
+        {
+            var name = string.IsNullOrWhiteSpace(_newPipelinePresetName)
+                ? $"Preset {_pipelinePresetBank.Presets.Count + 1}"
+                : _newPipelinePresetName.Trim();
+
+            var newPreset = CapturePipelinePreset(name, visualPipeline);
+            _pipelinePresetBank.Presets.Add(newPreset);
+            _selectedPipelinePresetIndex = _pipelinePresetBank.Presets.Count - 1;
+            _pipelinePresetStatus = $"Captured preset '{name}'.";
+        }
+    }
+
+    private PipelinePresetEntry CapturePipelinePreset(string presetName, VisualPipeline visualPipeline)
+    {
+        var entry = new PipelinePresetEntry
+        {
+            Name = presetName,
+            Pipeline = visualPipeline.CapturePresetState()
+        };
+
+        foreach (var lfo in _lfoEngine.Lfos)
+        {
+            entry.Lfos.Add(new LfoStateDto
+            {
+                SourceId = lfo.Id,
+                WaveType = lfo.WaveType,
+                Frequency = lfo.Frequency,
+                Phase = lfo.Phase,
+                DutyCycle = lfo.DutyCycle,
+                SyncEnabled = lfo.SyncEnabled,
+                SyncSpeedMultiplier = lfo.SyncSpeedMultiplier
+            });
+        }
+
+        foreach (var fft in _fftSources)
+        {
+            entry.FftSources.Add(new FftSourceStateDto
+            {
+                SourceId = fft.Id,
+                BinCount = fft.BinCount,
+                Smoothing = fft.Smoothing
+            });
+        }
+
+        for (var i = 0; i < visualPipeline.Parameters.Count; i++)
+        {
+            var parameter = visualPipeline.Parameters[i];
+            var hasMode = _lfoFftInteractionModes.TryGetValue(parameter, out var interactionMode);
+
+            var paramState = new ParameterModStateDto
+            {
+                ParameterIndex = i,
+                ParameterName = parameter.Name,
+                InteractionMode = hasMode ? interactionMode : ModulationInteractionMode.Add
+            };
+
+            foreach (var lfo in _lfoEngine.Lfos)
+            {
+                var key = (parameter, lfo.Id);
+                if (_modulationMatrix.TryGetValue(key, out var modulation))
+                {
+                    paramState.LfoAssignments.Add(new LfoAssignmentDto
+                    {
+                        SourceId = lfo.Id,
+                        Scale = modulation.Scale,
+                        Offset = modulation.Offset
+                    });
+                }
+            }
+
+            foreach (var fft in _fftSources)
+            {
+                var key = (parameter, fft.Id);
+                if (_audioModulationMatrix.TryGetValue(key, out var audioMod))
+                {
+                    paramState.FftAssignments.Add(new FftAssignmentDto
+                    {
+                        SourceId = fft.Id,
+                        BinIndex = audioMod.AudioBinIndex,
+                        Scale = audioMod.Scale,
+                        Offset = audioMod.Offset
+                    });
+                }
+            }
+
+            if (hasMode || paramState.LfoAssignments.Count > 0 || paramState.FftAssignments.Count > 0)
+            {
+                entry.ParameterModulations.Add(paramState);
+            }
+        }
+
+        return entry;
+    }
+
+    private void ApplyPipelinePreset(PipelinePresetEntry preset, VisualPipeline visualPipeline)
+    {
+        visualPipeline.ApplyPresetState(preset.Pipeline);
+
+        _lfoEngine.Lfos.Clear();
+        var lfoIdMap = new Dictionary<int, int>();
+        foreach (var lfoState in preset.Lfos)
+        {
+            var lfo = _lfoEngine.AddLfo();
+            lfo.WaveType = lfoState.WaveType;
+            lfo.Frequency = MathF.Max(0.001f, lfoState.Frequency);
+            lfo.Phase = lfoState.Phase;
+            lfo.DutyCycle = Math.Clamp(lfoState.DutyCycle, 0.05f, 0.95f);
+            lfo.SyncEnabled = lfoState.SyncEnabled;
+            lfo.SyncSpeedMultiplier = lfoState.SyncSpeedMultiplier;
+            lfoIdMap[lfoState.SourceId] = lfo.Id;
+        }
+
+        _fftSources.Clear();
+        _nextFftSourceId = 1;
+        var fftIdMap = new Dictionary<int, int>();
+        foreach (var fftState in preset.FftSources)
+        {
+            var source = new FftModSource
+            {
+                Id = _nextFftSourceId++,
+                BinCount = Math.Clamp(fftState.BinCount, 1, 64),
+                Smoothing = Math.Clamp(fftState.Smoothing, 0f, 0.99f),
+                SmoothedBins = new float[Math.Clamp(fftState.BinCount, 1, 64)]
+            };
+
+            _fftSources.Add(source);
+            fftIdMap[fftState.SourceId] = source.Id;
+        }
+
+        if (_fftSources.Count == 0)
+        {
+            AddFftSource();
+        }
+
+        _modulationMatrix.Clear();
+        _audioModulationMatrix.Clear();
+        _lfoFftInteractionModes.Clear();
+
+        var parameters = visualPipeline.Parameters;
+        foreach (var mod in preset.ParameterModulations)
+        {
+            var parameter = ResolvePipelineParameter(parameters, mod.ParameterIndex, mod.ParameterName);
+            if (parameter is null)
+            {
+                continue;
+            }
+
+            _lfoFftInteractionModes[parameter] = mod.InteractionMode;
+
+            foreach (var lfoAssignment in mod.LfoAssignments)
+            {
+                if (!lfoIdMap.TryGetValue(lfoAssignment.SourceId, out var mappedLfoId))
+                {
+                    continue;
+                }
+
+                _modulationMatrix[(parameter, mappedLfoId)] = new LfoModulation
+                {
+                    Scale = lfoAssignment.Scale,
+                    Offset = lfoAssignment.Offset
+                };
+            }
+
+            foreach (var fftAssignment in mod.FftAssignments)
+            {
+                if (!fftIdMap.TryGetValue(fftAssignment.SourceId, out var mappedFftId))
+                {
+                    continue;
+                }
+
+                _audioModulationMatrix[(parameter, mappedFftId)] = new AudioModulation
+                {
+                    AudioBinIndex = Math.Max(0, fftAssignment.BinIndex),
+                    Scale = fftAssignment.Scale,
+                    Offset = fftAssignment.Offset
+                };
+            }
+        }
+
+        SanitizeAudioBinAssignments();
+        _pipelinePresetStatus = $"Applied preset '{preset.Name}'.";
+    }
+
+    private static IParameter? ResolvePipelineParameter(IReadOnlyList<IParameter> parameters, int index, string name)
+    {
+        if (index >= 0 && index < parameters.Count && parameters[index].Name == name)
+        {
+            return parameters[index];
+        }
+
+        return parameters.FirstOrDefault(x => x.Name == name);
+    }
+
+    private void TryLoadPipelinePresetBankFromDisk()
+    {
+        try
+        {
+            if (!File.Exists(_pipelinePresetFilePath))
+            {
+                _pipelinePresetBank = new PipelinePresetBank();
+                _pipelinePresetStatus = $"Preset file not found: {_pipelinePresetFilePath}";
+                return;
+            }
+
+            var json = File.ReadAllText(_pipelinePresetFilePath);
+            _pipelinePresetBank = JsonSerializer.Deserialize<PipelinePresetBank>(json, _jsonOptions) ?? new PipelinePresetBank();
+            _selectedPipelinePresetIndex = Math.Clamp(_selectedPipelinePresetIndex, 0, Math.Max(0, _pipelinePresetBank.Presets.Count - 1));
+            _pipelinePresetStatus = $"Loaded {_pipelinePresetBank.Presets.Count} preset(s).";
+
+            if (_pipelinePresetBank.Presets.Count > 0)
+            {
+                _newPipelinePresetName = _pipelinePresetBank.Presets[_selectedPipelinePresetIndex].Name;
+            }
+        }
+        catch (Exception ex)
+        {
+            _pipelinePresetStatus = $"Load failed: {ex.Message}";
+        }
+    }
+
+    private void TrySavePipelinePresetBankToDisk()
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(_pipelinePresetBank, _jsonOptions);
+            File.WriteAllText(_pipelinePresetFilePath, json);
+            _pipelinePresetStatus = $"Saved {_pipelinePresetBank.Presets.Count} preset(s) to {_pipelinePresetFilePath}";
+        }
+        catch (Exception ex)
+        {
+            _pipelinePresetStatus = $"Save failed: {ex.Message}";
+        }
     }
 
     private void HandleVisualHotkeys()

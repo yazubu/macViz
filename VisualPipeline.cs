@@ -32,17 +32,17 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private int _newStageTypeIndex;
 
-    private static readonly (string Label, Func<PipelineStage> Create)[] StageFactories =
+    private static readonly StageFactory[] StageFactories =
     [
-        ("Camera Source", () => new CameraSourceStage()),
-        ("Rotating Cube Source", () => new SourceVisualStage("Rotating Cube", new RotatingCube3D())),
-        ("Spectrum Bars Source", () => new SourceVisualStage("Spectrum Bars", new SpectrumBars2d())),
-        ("Particle System Source", () => new SourceVisualStage("Particle System", new RotatingParticleSystem3D())),
-        ("Edge Detection Effect", () => new EdgeDetectEffectStage()),
-        ("Snapshot Peak Hold Effect", () => new SnapshotPeakEffectStage()),
-        ("Scale Effect", () => new ScaleEffectStage()),
-        ("Color Shift Effect", () => new ColorShiftEffectStage()),
-        ("Kaleidoscope Effect", () => new KaleidoscopeEffectStage())
+        new(CameraSourceStage.TypeIdValue, "Camera Source", () => new CameraSourceStage()),
+        new(SourceVisualStage.RotatingCubeTypeId, "Rotating Cube Source", () => new SourceVisualStage("Rotating Cube", new RotatingCube3D(), SourceVisualStage.RotatingCubeTypeId)),
+        new(SourceVisualStage.SpectrumBarsTypeId, "Spectrum Bars Source", () => new SourceVisualStage("Spectrum Bars", new SpectrumBars2d(), SourceVisualStage.SpectrumBarsTypeId)),
+        new(SourceVisualStage.ParticleSystemTypeId, "Particle System Source", () => new SourceVisualStage("Particle System", new RotatingParticleSystem3D(), SourceVisualStage.ParticleSystemTypeId)),
+        new(EdgeDetectEffectStage.TypeIdValue, "Edge Detection Effect", () => new EdgeDetectEffectStage()),
+        new(SnapshotPeakEffectStage.TypeIdValue, "Snapshot Peak Hold Effect", () => new SnapshotPeakEffectStage()),
+        new(ScaleEffectStage.TypeIdValue, "Scale Effect", () => new ScaleEffectStage()),
+        new(ColorShiftEffectStage.TypeIdValue, "Color Shift Effect", () => new ColorShiftEffectStage()),
+        new(KaleidoscopeEffectStage.TypeIdValue, "Kaleidoscope Effect", () => new KaleidoscopeEffectStage())
     ];
 
     public string Name => "Visual Pipeline";
@@ -57,10 +57,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         RefreshDevices();
         CreateGlResources();
 
-        _stages.Add(new CameraSourceStage());
-        _stages.Add(new EdgeDetectEffectStage());
-        _stages.Add(new SnapshotPeakEffectStage());
-        RebuildParameters();
+        BuildDefaultPipeline();
     }
 
     public void RefreshDevices()
@@ -91,6 +88,72 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         _cameraInput?.Dispose();
         _cameraInput = null;
         _cameraStatus = $"Reinitializing device {_selectedDeviceIndex}...";
+    }
+
+    public VisualPipelinePresetState CapturePresetState()
+    {
+        var state = new VisualPipelinePresetState();
+
+        foreach (var stage in _stages)
+        {
+            var stageState = new VisualPipelineStagePresetState
+            {
+                StageTypeId = stage.TypeId,
+                InputSource = stage.InputSource.ToString()
+            };
+
+            foreach (var parameter in stage.Parameters)
+            {
+                stageState.ParameterValues[parameter.Name] = GetParameterNumericValue(parameter);
+            }
+
+            state.Stages.Add(stageState);
+        }
+
+        return state;
+    }
+
+    public void ApplyPresetState(VisualPipelinePresetState? state)
+    {
+        if (state is null || state.Stages.Count == 0)
+        {
+            BuildDefaultPipeline();
+            return;
+        }
+
+        ClearStages(deferDispose: true);
+
+        foreach (var stageState in state.Stages)
+        {
+            var stage = CreateStageByTypeId(stageState.StageTypeId);
+            if (stage is null)
+            {
+                continue;
+            }
+
+            if (Enum.TryParse<PipelineInputSource>(stageState.InputSource, out var inputSource))
+            {
+                stage.InputSource = inputSource;
+            }
+
+            foreach (var parameter in stage.Parameters)
+            {
+                if (stageState.ParameterValues.TryGetValue(parameter.Name, out var numericValue))
+                {
+                    SetParameterNumericValue(parameter, numericValue);
+                }
+            }
+
+            _stages.Add(stage);
+        }
+
+        if (_stages.Count == 0)
+        {
+            BuildDefaultPipeline();
+            return;
+        }
+
+        RebuildParameters();
     }
 
     public void DrawEditorPanel()
@@ -132,11 +195,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         ImGui.SameLine();
         if (ImGui.Button("Reset Default Pipeline"))
         {
-            ClearStages(deferDispose: true);
-            _stages.Add(new CameraSourceStage());
-            _stages.Add(new EdgeDetectEffectStage());
-            _stages.Add(new SnapshotPeakEffectStage());
-            RebuildParameters();
+            BuildDefaultPipeline();
         }
 
         for (var i = 0; i < _stages.Count; i++)
@@ -538,6 +597,44 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         }
     }
 
+    private void BuildDefaultPipeline()
+    {
+        ClearStages(deferDispose: true);
+        _stages.Add(new CameraSourceStage());
+        _stages.Add(new EdgeDetectEffectStage());
+        _stages.Add(new SnapshotPeakEffectStage());
+        RebuildParameters();
+    }
+
+    private static float GetParameterNumericValue(IParameter parameter)
+    {
+        return parameter switch
+        {
+            Parameter<int> intParameter => intParameter.Value,
+            Parameter<float> floatParameter => floatParameter.Value,
+            _ => 0f
+        };
+    }
+
+    private static void SetParameterNumericValue(IParameter parameter, float numericValue)
+    {
+        switch (parameter)
+        {
+            case Parameter<int> intParameter:
+                intParameter.Value = Math.Clamp((int)MathF.Round(numericValue), intParameter.Min, intParameter.Max);
+                break;
+            case Parameter<float> floatParameter:
+                floatParameter.Value = Math.Clamp(numericValue, floatParameter.Min, floatParameter.Max);
+                break;
+        }
+    }
+
+    private static PipelineStage? CreateStageByTypeId(string typeId)
+    {
+        var factory = StageFactories.FirstOrDefault(x => x.TypeId == typeId);
+        return factory?.Create();
+    }
+
     private void ProcessPendingDisposals()
     {
         while (_pendingDisposals.Count > 0)
@@ -625,6 +722,8 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         if (_blitProgramFlipY != 0) GL.DeleteProgram(_blitProgramFlipY);
     }
 
+    private sealed record StageFactory(string TypeId, string Label, Func<PipelineStage> Create);
+
     private enum PipelineInputSource
     {
         Previous,
@@ -633,6 +732,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private abstract class PipelineStage : IDisposable
     {
+        public abstract string TypeId { get; }
         public abstract string Name { get; }
         public abstract IReadOnlyList<IParameter> Parameters { get; }
         public virtual bool SupportsInputSelection => true;
@@ -655,8 +755,10 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class CameraSourceStage : PipelineStage
     {
+        public const string TypeIdValue = "camera.source";
         private static readonly IReadOnlyList<IParameter> EmptyParameters = [];
 
+        public override string TypeId => TypeIdValue;
         public override string Name => "Camera Source";
         public override IReadOnlyList<IParameter> Parameters => EmptyParameters;
         public override bool SupportsInputSelection => false;
@@ -668,8 +770,13 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         }
     }
 
-    private sealed class SourceVisualStage(string label, IVisual visual) : PipelineStage
+    private sealed class SourceVisualStage(string label, IVisual visual, string typeId) : PipelineStage
     {
+        public const string RotatingCubeTypeId = "source.rotatingCube";
+        public const string SpectrumBarsTypeId = "source.spectrumBars";
+        public const string ParticleSystemTypeId = "source.particleSystem";
+
+        public override string TypeId => typeId;
         public override string Name => label;
         public override IReadOnlyList<IParameter> Parameters => visual.Parameters;
         public override bool SupportsInputSelection => false;
@@ -687,6 +794,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class EdgeDetectEffectStage : PipelineStage
     {
+        public const string TypeIdValue = "effect.edgeDetect";
         private readonly Parameter<float> _edgeStrength = new("Edge Effect / Strength", 0f, 5f, 1.4f);
         private readonly Parameter<float> _threshold = new("Edge Effect / Threshold", 0f, 1f, 0.25f);
         private readonly Parameter<float> _mix = new("Edge Effect / Mix", 0f, 1f, 1f);
@@ -705,6 +813,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
             _parameters = [_edgeStrength, _threshold, _mix, _invert];
         }
 
+        public override string TypeId => TypeIdValue;
         public override string Name => "Edge Detection";
         public override IReadOnlyList<IParameter> Parameters => _parameters;
 
@@ -808,6 +917,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class ScaleEffectStage : PipelineStage
     {
+        public const string TypeIdValue = "effect.scale";
         private readonly Parameter<float> _scale = new("Scale Effect / Scale", 0.2f, 3f, 1f);
         private readonly Parameter<float> _pivotX = new("Scale Effect / Pivot X", 0f, 1f, 0.5f);
         private readonly Parameter<float> _pivotY = new("Scale Effect / Pivot Y", 0f, 1f, 0.5f);
@@ -823,6 +933,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
             _parameters = [_scale, _pivotX, _pivotY];
         }
 
+        public override string TypeId => TypeIdValue;
         public override string Name => "Scale";
         public override IReadOnlyList<IParameter> Parameters => _parameters;
 
@@ -899,6 +1010,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class ColorShiftEffectStage : PipelineStage
     {
+        public const string TypeIdValue = "effect.colorShift";
         private readonly Parameter<float> _redShiftPixels = new("Color Shift Effect / Red Shift (px)", -256f, 256f, 8f);
         private readonly Parameter<float> _greenShiftPixels = new("Color Shift Effect / Green Shift (px)", -256f, 256f, 0f);
         private readonly Parameter<float> _blueShiftPixels = new("Color Shift Effect / Blue Shift (px)", -256f, 256f, -8f);
@@ -919,6 +1031,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
             _parameters = [_redShiftPixels, _greenShiftPixels, _blueShiftPixels, _directionRadians, _mix];
         }
 
+        public override string TypeId => TypeIdValue;
         public override string Name => "Color Shift";
         public override IReadOnlyList<IParameter> Parameters => _parameters;
 
@@ -1018,6 +1131,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class KaleidoscopeEffectStage : PipelineStage
     {
+        public const string TypeIdValue = "effect.kaleidoscope";
         private readonly Parameter<int> _axisCount = new("Kaleidoscope Effect / Axis Count", 1, 24, 6);
         private readonly Parameter<float> _centerX = new("Kaleidoscope Effect / Center X", 0f, 1f, 0.5f);
         private readonly Parameter<float> _centerY = new("Kaleidoscope Effect / Center Y", 0f, 1f, 0.5f);
@@ -1039,6 +1153,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
             _parameters = [_axisCount, _centerX, _centerY, _axisRotation, _radialScale, _mix];
         }
 
+        public override string TypeId => TypeIdValue;
         public override string Name => "Kaleidoscope";
         public override IReadOnlyList<IParameter> Parameters => _parameters;
 
@@ -1145,6 +1260,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class SnapshotPeakEffectStage : PipelineStage
     {
+        public const string TypeIdValue = "effect.snapshotPeak";
         private readonly Parameter<float> _snapshotSignal = new("Snapshot Effect / Signal", 0f, 2f, 0f);
         private readonly Parameter<float> _peakThreshold = new("Snapshot Effect / Peak Threshold", 0f, 2f, 0.8f);
         private readonly Parameter<float> _minPeakInterval = new("Snapshot Effect / Min Interval (s)", 0.02f, 2f, 0.2f);
@@ -1188,6 +1304,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
             ];
         }
 
+        public override string TypeId => TypeIdValue;
         public override string Name => "Snapshot Peak Hold";
         public override IReadOnlyList<IParameter> Parameters => _parameters;
 
@@ -1389,4 +1506,16 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
             }
         }
     }
+}
+
+public sealed class VisualPipelinePresetState
+{
+    public List<VisualPipelineStagePresetState> Stages { get; set; } = [];
+}
+
+public sealed class VisualPipelineStagePresetState
+{
+    public string StageTypeId { get; set; } = string.Empty;
+    public string InputSource { get; set; } = "Previous";
+    public Dictionary<string, float> ParameterValues { get; set; } = [];
 }

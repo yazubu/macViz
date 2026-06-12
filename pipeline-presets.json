@@ -1,0 +1,309 @@
+{
+  "Presets": [
+    {
+      "Name": "test1",
+      "Pipeline": {
+        "Stages": [
+          {
+            "StageTypeId": "camera.source",
+            "InputSource": "Previous",
+            "ParameterValues": {}
+          },
+          {
+            "StageTypeId": "effect.edgeDetect",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Edge Effect / Strength": 1.4,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            }
+          },
+          {
+            "StageTypeId": "effect.scale",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Scale Effect / Scale": 1.481,
+              "Scale Effect / Pivot X": 0.5,
+              "Scale Effect / Pivot Y": 0.5
+            }
+          },
+          {
+            "StageTypeId": "effect.snapshotPeak",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Snapshot Effect / Signal": 0,
+              "Snapshot Effect / Peak Threshold": 0.8,
+              "Snapshot Effect / Min Interval (s)": 0.2,
+              "Snapshot Effect / Hold Time (s)": 2.5,
+              "Snapshot Effect / Count": 8,
+              "Snapshot Effect / Opacity": 1,
+              "Snapshot Effect / Opacity Drop": 0.2,
+              "Snapshot Effect / Mix": 1
+            }
+          },
+          {
+            "StageTypeId": "effect.colorShift",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Color Shift Effect / Red Shift (px)": 8,
+              "Color Shift Effect / Green Shift (px)": 0,
+              "Color Shift Effect / Blue Shift (px)": -8,
+              "Color Shift Effect / Direction (rad)": 0,
+              "Color Shift Effect / Mix": 1
+            }
+          },
+          {
+            "StageTypeId": "effect.kaleidoscope",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Kaleidoscope Effect / Axis Count": 6,
+              "Kaleidoscope Effect / Center X": 0.5,
+              "Kaleidoscope Effect / Center Y": 0.5,
+              "Kaleidoscope Effect / Axis Rotation (rad)": -0.13,
+              "Kaleidoscope Effect / Radial Scale": 1,
+              "Kaleidoscope Effect / Mix": 1
+            }
+          }
+        ]
+      },
+      "Lfos": [
+        {
+          "SourceId": 1,
+          "WaveType": 5,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 2,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": false,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 3,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 0.25
+        }
+      ],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 8,
+          "Smoothing": 0.75
+        }
+      ],
+      "ParameterModulations": [
+        {
+          "ParameterIndex": 1,
+          "ParameterName": "Edge Effect / Threshold",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 1,
+              "Scale": 1,
+              "Offset": 0
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 2,
+          "ParameterName": "Edge Effect / Mix",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 1,
+              "Scale": 1,
+              "Offset": 0
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 4,
+          "ParameterName": "Scale Effect / Scale",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 2,
+              "Scale": 0,
+              "Offset": 0.64
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 22,
+          "ParameterName": "Kaleidoscope Effect / Center Y",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 1,
+              "Scale": 1,
+              "Offset": 1
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 23,
+          "ParameterName": "Kaleidoscope Effect / Axis Rotation (rad)",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 3,
+              "Scale": 1,
+              "Offset": 0
+            }
+          ],
+          "FftAssignments": []
+        }
+      ]
+    },
+    {
+      "Name": "test2",
+      "Pipeline": {
+        "Stages": [
+          {
+            "StageTypeId": "camera.source",
+            "InputSource": "Previous",
+            "ParameterValues": {}
+          },
+          {
+            "StageTypeId": "effect.colorShift",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Color Shift Effect / Red Shift (px)": 8,
+              "Color Shift Effect / Green Shift (px)": 0,
+              "Color Shift Effect / Blue Shift (px)": 50.667,
+              "Color Shift Effect / Direction (rad)": 0,
+              "Color Shift Effect / Mix": 1
+            }
+          },
+          {
+            "StageTypeId": "effect.kaleidoscope",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Kaleidoscope Effect / Axis Count": 6,
+              "Kaleidoscope Effect / Center X": 0.5,
+              "Kaleidoscope Effect / Center Y": 0.5,
+              "Kaleidoscope Effect / Axis Rotation (rad)": -0.13,
+              "Kaleidoscope Effect / Radial Scale": 1,
+              "Kaleidoscope Effect / Mix": 1
+            }
+          }
+        ]
+      },
+      "Lfos": [
+        {
+          "SourceId": 4,
+          "WaveType": 5,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 5,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": false,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 6,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 0.25
+        },
+        {
+          "SourceId": 7,
+          "WaveType": 2,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        }
+      ],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 8,
+          "Smoothing": 0.75
+        }
+      ],
+      "ParameterModulations": [
+        {
+          "ParameterIndex": 2,
+          "ParameterName": "Color Shift Effect / Blue Shift (px)",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 7,
+              "Scale": 1,
+              "Offset": 0
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 3,
+          "ParameterName": "Color Shift Effect / Direction (rad)",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 7,
+              "Scale": 1,
+              "Offset": 0
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 7,
+          "ParameterName": "Kaleidoscope Effect / Center Y",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 4,
+              "Scale": 1,
+              "Offset": 1
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 8,
+          "ParameterName": "Kaleidoscope Effect / Axis Rotation (rad)",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 6,
+              "Scale": 1,
+              "Offset": 0
+            }
+          ],
+          "FftAssignments": []
+        }
+      ]
+    }
+  ]
+}
