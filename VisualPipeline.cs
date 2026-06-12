@@ -686,10 +686,10 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class EdgeDetectEffectStage : PipelineStage
     {
-        private readonly Parameter<float> _edgeStrength = new("Edge Strength", 0f, 5f, 1.4f);
-        private readonly Parameter<float> _threshold = new("Edge Threshold", 0f, 1f, 0.25f);
-        private readonly Parameter<float> _mix = new("Edge Mix", 0f, 1f, 1f);
-        private readonly Parameter<float> _invert = new("Edge Invert", 0f, 1f, 0f);
+        private readonly Parameter<float> _edgeStrength = new("Edge Effect / Strength", 0f, 5f, 1.4f);
+        private readonly Parameter<float> _threshold = new("Edge Effect / Threshold", 0f, 1f, 0.25f);
+        private readonly Parameter<float> _mix = new("Edge Effect / Mix", 0f, 1f, 1f);
+        private readonly Parameter<float> _invert = new("Edge Effect / Invert", 0f, 1f, 0f);
         private readonly IReadOnlyList<IParameter> _parameters;
 
         private int _program;
@@ -807,9 +807,9 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class ScaleEffectStage : PipelineStage
     {
-        private readonly Parameter<float> _scale = new("Scale", 0.2f, 3f, 1f);
-        private readonly Parameter<float> _pivotX = new("Scale Pivot X", 0f, 1f, 0.5f);
-        private readonly Parameter<float> _pivotY = new("Scale Pivot Y", 0f, 1f, 0.5f);
+        private readonly Parameter<float> _scale = new("Scale Effect / Scale", 0.2f, 3f, 1f);
+        private readonly Parameter<float> _pivotX = new("Scale Effect / Pivot X", 0f, 1f, 0.5f);
+        private readonly Parameter<float> _pivotY = new("Scale Effect / Pivot Y", 0f, 1f, 0.5f);
         private readonly IReadOnlyList<IParameter> _parameters;
 
         private int _program;
@@ -898,9 +898,9 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class ColorShiftEffectStage : PipelineStage
     {
-        private readonly Parameter<float> _hueShift = new("Hue Shift", -1f, 1f, 0f);
-        private readonly Parameter<float> _saturation = new("Saturation", 0f, 2f, 1f);
-        private readonly Parameter<float> _value = new("Value", 0f, 2f, 1f);
+        private readonly Parameter<float> _hueShift = new("Color Shift Effect / Hue", -1f, 1f, 0f);
+        private readonly Parameter<float> _saturation = new("Color Shift Effect / Saturation", 0f, 2f, 1f);
+        private readonly Parameter<float> _value = new("Color Shift Effect / Value", 0f, 2f, 1f);
         private readonly IReadOnlyList<IParameter> _parameters;
 
         private int _program;
@@ -1006,14 +1006,14 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class SnapshotPeakEffectStage : PipelineStage
     {
-        private readonly Parameter<float> _snapshotSignal = new("Snapshot Signal", 0f, 2f, 0f);
-        private readonly Parameter<float> _peakThreshold = new("Peak Threshold", 0f, 2f, 0.8f);
-        private readonly Parameter<float> _minPeakInterval = new("Min Peak Interval (s)", 0.02f, 2f, 0.2f);
-        private readonly Parameter<float> _holdSeconds = new("Hold Time (s)", 0.05f, 8f, 2.5f);
-        private readonly Parameter<int> _snapshotCount = new("Snapshot Count", 1, MaxSnapshots, MaxSnapshots);
-        private readonly Parameter<float> _snapshotOpacity = new("Snapshot Opacity", 0f, 1f, 1f);
-        private readonly Parameter<float> _opacityDrop = new("Opacity Drop / Shot", 0f, 0.95f, 0.2f);
-        private readonly Parameter<float> _mix = new("Snapshot Mix", 0f, 1f, 1f);
+        private readonly Parameter<float> _snapshotSignal = new("Snapshot Effect / Signal", 0f, 2f, 0f);
+        private readonly Parameter<float> _peakThreshold = new("Snapshot Effect / Peak Threshold", 0f, 2f, 0.8f);
+        private readonly Parameter<float> _minPeakInterval = new("Snapshot Effect / Min Interval (s)", 0.02f, 2f, 0.2f);
+        private readonly Parameter<float> _holdSeconds = new("Snapshot Effect / Hold Time (s)", 0.05f, 8f, 2.5f);
+        private readonly Parameter<int> _snapshotCount = new("Snapshot Effect / Count", 1, MaxSnapshots, MaxSnapshots);
+        private readonly Parameter<float> _snapshotOpacity = new("Snapshot Effect / Opacity", 0f, 1f, 1f);
+        private readonly Parameter<float> _opacityDrop = new("Snapshot Effect / Opacity Drop", 0f, 0.95f, 0.2f);
+        private readonly Parameter<float> _mix = new("Snapshot Effect / Mix", 0f, 1f, 1f);
         private readonly IReadOnlyList<IParameter> _parameters;
 
         private readonly int[] _snapshotTextures = new int[MaxSnapshots];
