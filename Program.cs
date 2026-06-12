@@ -349,7 +349,7 @@ public class MinimalGameWindow : GameWindow
         var activeClock = GetActiveBeatClock();
 
         var bpm = activeClock.Bpm;
-        ImGui.SetNextItemWidth(180);
+        ImGui.SetNextItemWidth(130);
         if (ImGui.SliderFloat("Tempo (BPM)", ref bpm, 60f, 160f, "%.1f"))
         {
             if (_preferAbletonLink && _abletonLink.IsAvailable)
@@ -745,16 +745,16 @@ public class MinimalGameWindow : GameWindow
         }
 
         ImGui.TableSetupColumn("Parameter", ImGuiTableColumnFlags.WidthFixed, 260);
-        ImGui.TableSetupColumn("LFO↔FFT", ImGuiTableColumnFlags.WidthFixed, 150);
+        ImGui.TableSetupColumn("LFO↔FFT", ImGuiTableColumnFlags.WidthFixed, 120);
 
         foreach (var fft in _fftSources)
         {
-            ImGui.TableSetupColumn($"FFT {fft.Id}", ImGuiTableColumnFlags.WidthFixed, 50);
+            ImGui.TableSetupColumn($"FFT {fft.Id}", ImGuiTableColumnFlags.WidthFixed, 120);
         }
 
         foreach (var lfo in _lfoEngine.Lfos)
         {
-            ImGui.TableSetupColumn($"LFO {lfo.Id}", ImGuiTableColumnFlags.WidthFixed, 50);
+            ImGui.TableSetupColumn($"LFO {lfo.Id}", ImGuiTableColumnFlags.WidthFixed, 120);
         }
 
         ImGui.TableHeadersRow();
@@ -843,21 +843,22 @@ public class MinimalGameWindow : GameWindow
                     }
 
                     var audioScale = audioMod.Scale;
-                    ImGui.SetNextItemWidth(135);
+                    ImGui.SetNextItemWidth(120);
                     if (ImGui.SliderFloat("##fftScale", ref audioScale, 0f, 2f, "Scale %.2f"))
                     {
                         audioMod.Scale = audioScale;
                     }
 
                     var audioOffset = audioMod.Offset;
-                    ImGui.SetNextItemWidth(135);
+                    ImGui.SetNextItemWidth(120);
                     if (ImGui.SliderFloat("##fftOffset", ref audioOffset, -1f, 1f, "Offset %.2f"))
                     {
                         audioMod.Offset = audioOffset;
                     }
 
                     var binValue = GetAudioBinValue(fft.Id, audioMod.AudioBinIndex);
-                    ImGui.TextDisabled($"FFT: {binValue:F2}");
+                    var binModulated = (binValue * audioMod.Scale) + audioMod.Offset;
+                    ImGui.TextDisabled($"BIN: {binValue:F2} → {binModulated:F2}");
                 }
 
                 ImGui.PopID();
@@ -902,6 +903,10 @@ public class MinimalGameWindow : GameWindow
                     {
                         modulation.Offset = offset;
                     }
+
+                    var lfoValue = lfo.Output;
+                    var lfoModulated = (lfoValue * modulation.Scale) + modulation.Offset;
+                    ImGui.TextDisabled($"LFO: {lfoValue:F2} → {lfoModulated:F2}");
                 }
 
                 ImGui.PopID();
