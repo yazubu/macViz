@@ -614,17 +614,17 @@ public class MinimalGameWindow : GameWindow
             return;
         }
 
-        ImGui.TableSetupColumn("Parameter", ImGuiTableColumnFlags.WidthFixed, 160);
-        ImGui.TableSetupColumn("LFO↔FFT", ImGuiTableColumnFlags.WidthFixed, 130);
+        ImGui.TableSetupColumn("Parameter", ImGuiTableColumnFlags.WidthFixed, 260);
+        ImGui.TableSetupColumn("LFO↔FFT", ImGuiTableColumnFlags.WidthFixed, 150);
 
         foreach (var fft in _fftSources)
         {
-            ImGui.TableSetupColumn($"FFT {fft.Id}", ImGuiTableColumnFlags.WidthFixed, 220);
+            ImGui.TableSetupColumn($"FFT {fft.Id}", ImGuiTableColumnFlags.WidthFixed, 50);
         }
 
         foreach (var lfo in _lfoEngine.Lfos)
         {
-            ImGui.TableSetupColumn($"LFO {lfo.Id}", ImGuiTableColumnFlags.WidthFixed, 170);
+            ImGui.TableSetupColumn($"LFO {lfo.Id}", ImGuiTableColumnFlags.WidthFixed, 50);
         }
 
         ImGui.TableHeadersRow();
@@ -670,7 +670,7 @@ public class MinimalGameWindow : GameWindow
                 ImGui.PushID($"fft_cell_{row}_{fft.Id}");
 
                 var fftAssigned = _audioModulationMatrix.TryGetValue(audioKey, out var audioMod);
-                if (ImGui.Checkbox("Assign", ref fftAssigned))
+                if (ImGui.Checkbox("##assign", ref fftAssigned))
                 {
                     if (fftAssigned)
                     {
@@ -742,7 +742,7 @@ public class MinimalGameWindow : GameWindow
                 ImGui.PushID($"cell_{row}_{lfo.Id}");
 
                 var assigned = _modulationMatrix.TryGetValue(key, out var modulation);
-                if (ImGui.Checkbox("Assign", ref assigned))
+                if (ImGui.Checkbox("##assign", ref assigned))
                 {
                     if (assigned)
                     {
