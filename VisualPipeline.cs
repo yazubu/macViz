@@ -898,20 +898,24 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
 
     private sealed class ColorShiftEffectStage : PipelineStage
     {
-        private readonly Parameter<float> _hueShift = new("Color Shift Effect / Hue", -1f, 1f, 0f);
-        private readonly Parameter<float> _saturation = new("Color Shift Effect / Saturation", 0f, 2f, 1f);
-        private readonly Parameter<float> _value = new("Color Shift Effect / Value", 0f, 2f, 1f);
+        private readonly Parameter<float> _redShiftPixels = new("Color Shift Effect / Red Shift (px)", -256f, 256f, 8f);
+        private readonly Parameter<float> _greenShiftPixels = new("Color Shift Effect / Green Shift (px)", -256f, 256f, 0f);
+        private readonly Parameter<float> _blueShiftPixels = new("Color Shift Effect / Blue Shift (px)", -256f, 256f, -8f);
+        private readonly Parameter<float> _directionRadians = new("Color Shift Effect / Direction (rad)", -6.28319f, 6.28319f, 0f);
+        private readonly Parameter<float> _mix = new("Color Shift Effect / Mix", 0f, 1f, 1f);
         private readonly IReadOnlyList<IParameter> _parameters;
 
         private int _program;
         private int _uTexture;
-        private int _uHueShift;
-        private int _uSaturation;
-        private int _uValue;
+        private int _uRedShiftPixels;
+        private int _uGreenShiftPixels;
+        private int _uBlueShiftPixels;
+        private int _uDirectionRadians;
+        private int _uMix;
 
         public ColorShiftEffectStage()
         {
-            _parameters = [_hueShift, _saturation, _value];
+            _parameters = [_redShiftPixels, _greenShiftPixels, _blueShiftPixels, _directionRadians, _mix];
         }
 
         public override string Name => "Color Shift";
@@ -942,42 +946,47 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
                 out vec4 fragColor;
 
                 uniform sampler2D uTexture;
-                uniform float uHueShift;
-                uniform float uSaturation;
-                uniform float uValue;
+                uniform float uRedShiftPixels;
+                uniform float uGreenShiftPixels;
+                uniform float uBlueShiftPixels;
+                uniform float uDirectionRadians;
+                uniform float uMix;
 
-                vec3 rgb2hsv(vec3 c)
+                vec2 offsetForShift(float pixels, vec2 texel, vec2 dir)
                 {
-                    vec4 K = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0);
-                    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-                    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-                    float d = q.x - min(q.w, q.y);
-                    float e = 1.0e-10;
-                    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-                }
-
-                vec3 hsv2rgb(vec3 c)
-                {
-                    vec3 p = abs(fract(c.xxx + vec3(0.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0);
-                    return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+                    return dir * pixels * texel;
                 }
 
                 void main()
                 {
-                    vec3 color = texture(uTexture, vUv).rgb;
-                    vec3 hsv = rgb2hsv(color);
-                    hsv.x = fract(hsv.x + uHueShift);
-                    hsv.y = clamp(hsv.y * uSaturation, 0.0, 1.0);
-                    hsv.z = max(0.0, hsv.z * uValue);
-                    fragColor = vec4(hsv2rgb(hsv), 1.0);
+                    vec3 original = texture(uTexture, vUv).rgb;
+
+                    vec2 texSize = vec2(textureSize(uTexture, 0));
+                    vec2 texel = 1.0 / max(texSize, vec2(1.0));
+                    vec2 dir = vec2(cos(uDirectionRadians), sin(uDirectionRadians));
+
+                    vec2 uvR = vUv + offsetForShift(uRedShiftPixels, texel, dir);
+                    vec2 uvG = vUv + offsetForShift(uGreenShiftPixels, texel, dir);
+                    vec2 uvB = vUv + offsetForShift(uBlueShiftPixels, texel, dir);
+
+                    vec3 shifted = vec3(
+                        texture(uTexture, uvR).r,
+                        texture(uTexture, uvG).g,
+                        texture(uTexture, uvB).b
+                    );
+
+                    vec3 color = mix(original, shifted, clamp(uMix, 0.0, 1.0));
+                    fragColor = vec4(color, 1.0);
                 }
                 """;
 
             _program = CompileProgram(vertex, fragment);
             _uTexture = GL.GetUniformLocation(_program, "uTexture");
-            _uHueShift = GL.GetUniformLocation(_program, "uHueShift");
-            _uSaturation = GL.GetUniformLocation(_program, "uSaturation");
-            _uValue = GL.GetUniformLocation(_program, "uValue");
+            _uRedShiftPixels = GL.GetUniformLocation(_program, "uRedShiftPixels");
+            _uGreenShiftPixels = GL.GetUniformLocation(_program, "uGreenShiftPixels");
+            _uBlueShiftPixels = GL.GetUniformLocation(_program, "uBlueShiftPixels");
+            _uDirectionRadians = GL.GetUniformLocation(_program, "uDirectionRadians");
+            _uMix = GL.GetUniformLocation(_program, "uMix");
 
             GL.UseProgram(_program);
             GL.Uniform1(_uTexture, 0);
@@ -987,9 +996,11 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         public override void Render(VisualPipeline host, int inputTexture, float[] spectrum, float time)
         {
             GL.UseProgram(_program);
-            GL.Uniform1(_uHueShift, _hueShift.CurrentValue);
-            GL.Uniform1(_uSaturation, _saturation.CurrentValue);
-            GL.Uniform1(_uValue, _value.CurrentValue);
+            GL.Uniform1(_uRedShiftPixels, _redShiftPixels.CurrentValue);
+            GL.Uniform1(_uGreenShiftPixels, _greenShiftPixels.CurrentValue);
+            GL.Uniform1(_uBlueShiftPixels, _blueShiftPixels.CurrentValue);
+            GL.Uniform1(_uDirectionRadians, _directionRadians.CurrentValue);
+            GL.Uniform1(_uMix, _mix.CurrentValue);
 
             host.DrawFullscreen(_program, inputTexture);
         }
