@@ -43,6 +43,51 @@
           }
         }
       },
+      "OneWare.OpenCvSharp4.runtime.osx-arm64/4.13.0.18": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/_._": {}
+        },
+        "runtime": {
+          "lib/netstandard2.0/_._": {}
+        },
+        "runtimeTargets": {
+          "runtimes/osx-arm64/native/libOpenCvSharpExtern.dylib": {
+            "assetType": "native",
+            "rid": "osx-arm64"
+          }
+        }
+      },
+      "OpenCvSharp4/4.13.0.20260602": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/OpenCvSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/OpenCvSharp.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "OpenCvSharp4.runtime.win/4.13.0.20260602": {
+        "type": "package",
+        "build": {
+          "build/net8.0/OpenCvSharp4.runtime.win.props": {},
+          "build/net8.0/OpenCvSharp4.runtime.win.targets": {}
+        },
+        "runtimeTargets": {
+          "runtimes/win-x64/native/OpenCvSharpExtern.dll": {
+            "assetType": "native",
+            "rid": "win-x64"
+          },
+          "runtimes/win-x64/native/opencv_videoio_ffmpeg4130_64.dll": {
+            "assetType": "native",
+            "rid": "win-x64"
+          }
+        }
+      },
       "OpenTK/4.9.4": {
         "type": "package",
         "dependencies": {
@@ -308,6 +353,62 @@
         "managedbass.nuspec"
       ]
     },
+    "OneWare.OpenCvSharp4.runtime.osx-arm64/4.13.0.18": {
+      "sha512": "zsBWSZ6cOA4N4y0hylww1FoReGQl0IzEQm0KyzDXSs0yVsyABaH30EihN9uic79qSabxmn8K3NF0wHSoWAXv4Q==",
+      "type": "package",
+      "path": "oneware.opencvsharp4.runtime.osx-arm64/4.13.0.18",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "build/net45/OneWare.OpenCvSharp4.runtime.osx-arm64.props",
+        "lib/net45/_._",
+        "lib/netstandard2.0/_._",
+        "oneware.opencvsharp4.runtime.osx-arm64.4.13.0.18.nupkg.sha512",
+        "oneware.opencvsharp4.runtime.osx-arm64.nuspec",
+        "runtimes/osx-arm64/native/libOpenCvSharpExtern.dylib"
+      ]
+    },
+    "OpenCvSharp4/4.13.0.20260602": {
+      "sha512": "NXQBXXWgeVnmGhRWX5KvhGFIagI9ZGeZgip07GgSbRD5uDNembCyqW+9dPwO/ZOweVUkWihrwJYDo8GG413tEQ==",
+      "type": "package",
+      "path": "opencvsharp4/4.13.0.20260602",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.managed.md",
+        "analyzers/dotnet/cs/OpenCvSharp.Analyzers.dll",
+        "lib/net8.0/OpenCvSharp.dll",
+        "lib/net8.0/OpenCvSharp.xml",
+        "lib/netstandard2.0/OpenCvSharp.dll",
+        "lib/netstandard2.0/OpenCvSharp.xml",
+        "lib/netstandard2.1/OpenCvSharp.dll",
+        "lib/netstandard2.1/OpenCvSharp.xml",
+        "opencvsharp.png",
+        "opencvsharp4.4.13.0.20260602.nupkg.sha512",
+        "opencvsharp4.nuspec"
+      ]
+    },
+    "OpenCvSharp4.runtime.win/4.13.0.20260602": {
+      "sha512": "p0ndldIYwdBFPWYTHkzPGR8+/VIzx8ZKNPdPDBno1FbUaAiEjHAzgMU/G5vb5Nj2T6n3c3JOmAyj/YHNToq+6g==",
+      "type": "package",
+      "path": "opencvsharp4.runtime.win/4.13.0.20260602",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.runtime.md",
+        "build/net8.0/OpenCvSharp4.runtime.win.props",
+        "build/net8.0/OpenCvSharp4.runtime.win.targets",
+        "build/netcoreapp/OpenCvSharp4.runtime.win.props",
+        "build/netcoreapp/OpenCvSharp4.runtime.win.targets",
+        "build/netstandard/OpenCvSharp4.runtime.win.props",
+        "build/netstandard/OpenCvSharp4.runtime.win.targets",
+        "opencvsharp.png",
+        "opencvsharp4.runtime.win.4.13.0.20260602.nupkg.sha512",
+        "opencvsharp4.runtime.win.nuspec",
+        "runtimes/win-x64/native/OpenCvSharpExtern.dll",
+        "runtimes/win-x64/native/opencv_videoio_ffmpeg4130_64.dll"
+      ]
+    },
     "OpenTK/4.9.4": {
       "sha512": "fp9ZI6akO4ZuIGzuUE0QRU5zRJhXbSXa5racehFoTdvodhRDecXCOcH68mRsZaMwnxLO9ECnf2LGM9BmiJKvhw==",
       "type": "package",
@@ -521,6 +622,9 @@
   "projectFileDependencyGroups": {
     "net10.0": [
       "ManagedBass >= 4.0.2",
+      "OneWare.OpenCvSharp4.runtime.osx-arm64 >= 4.13.0.18",
+      "OpenCvSharp4 >= 4.13.0.20260602",
+      "OpenCvSharp4.runtime.win >= 4.13.0.20260602",
       "OpenTK >= 4.9.4",
       "Twizzle.ImGui-Bundle.NET >= 1.91.5.2",
       "libbass >= 2.4.18.3"
@@ -572,6 +676,18 @@
           "ManagedBass": {
             "target": "Package",
             "version": "[4.0.2, )"
+          },
+          "OneWare.OpenCvSharp4.runtime.osx-arm64": {
+            "target": "Package",
+            "version": "[4.13.0.18, )"
+          },
+          "OpenCvSharp4": {
+            "target": "Package",
+            "version": "[4.13.0.20260602, )"
+          },
+          "OpenCvSharp4.runtime.win": {
+            "target": "Package",
+            "version": "[4.13.0.20260602, )"
           },
           "OpenTK": {
             "target": "Package",

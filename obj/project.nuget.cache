@@ -1,11 +1,14 @@
 {
   "version": 2,
-  "dgSpecHash": "F0HcbpD+3ew=",
+  "dgSpecHash": "cC+u7+yxgr0=",
   "success": true,
   "projectFilePath": "/Users/yazzi/projects/macViz/macViz.csproj",
   "expectedPackageFiles": [
     "/Users/yazzi/.nuget/packages/libbass/2.4.18.3/libbass.2.4.18.3.nupkg.sha512",
     "/Users/yazzi/.nuget/packages/managedbass/4.0.2/managedbass.4.0.2.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/oneware.opencvsharp4.runtime.osx-arm64/4.13.0.18/oneware.opencvsharp4.runtime.osx-arm64.4.13.0.18.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opencvsharp4/4.13.0.20260602/opencvsharp4.4.13.0.20260602.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/opencvsharp4.runtime.win/4.13.0.20260602/opencvsharp4.runtime.win.4.13.0.20260602.nupkg.sha512",
     "/Users/yazzi/.nuget/packages/opentk/4.9.4/opentk.4.9.4.nupkg.sha512",
     "/Users/yazzi/.nuget/packages/opentk.audio.openal/4.9.4/opentk.audio.openal.4.9.4.nupkg.sha512",
     "/Users/yazzi/.nuget/packages/opentk.compute/4.9.4/opentk.compute.4.9.4.nupkg.sha512",

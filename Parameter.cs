@@ -3,10 +3,7 @@ namespace macViz;
 public interface IParameter
 {
     string Name { get; }
-    int? AssignedLfoId { get; set; }
-    float LfoScale { get; set; }
-    float LfoOffset { get; set; }
-    void ApplyLfo(LfoEngine lfoEngine);
+    void ApplyCombinedModulation(float modulationAmount);
 }
 
 public sealed class Parameter<T> : IParameter where T : struct, IConvertible
@@ -18,12 +15,8 @@ public sealed class Parameter<T> : IParameter where T : struct, IConvertible
     // User editable/base value.
     public T Value { get; set; }
 
-    // Value after LFO modulation.
+    // Value after modulation.
     public T CurrentValue { get; private set; }
-
-    public int? AssignedLfoId { get; set; }
-    public float LfoScale { get; set; } = 0f;
-    public float LfoOffset { get; set; }
 
     public Parameter(string name, T min, T max, T value)
     {
@@ -34,20 +27,13 @@ public sealed class Parameter<T> : IParameter where T : struct, IConvertible
         CurrentValue = value;
     }
 
-    public void ApplyLfo(LfoEngine lfoEngine)
+    public void ApplyCombinedModulation(float modulationAmount)
     {
         var baseValue = Convert.ToSingle(Value);
-
-        if (AssignedLfoId is null || !lfoEngine.TryGetOutput(AssignedLfoId.Value, out var lfoValue))
-        {
-            CurrentValue = Value;
-            return;
-        }
-
         var min = Convert.ToSingle(Min);
         var max = Convert.ToSingle(Max);
 
-        var modulated = baseValue + (lfoValue * LfoScale) + LfoOffset;
+        var modulated = baseValue + modulationAmount;
         modulated = Math.Clamp(modulated, min, max);
 
         CurrentValue = FromFloat(modulated);

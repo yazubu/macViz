@@ -26,11 +26,19 @@ public class MinimalGameWindow : GameWindow
         ("4:1", 4f)
     ];
 
+    private sealed class LfoModulation
+    {
+        public float Scale = 1f;
+        public float Offset;
+    }
+
     private int _selectedVisualIndex;
     private int _selectedParameterIndex;
+    private readonly Dictionary<(int VisualIndex, int ParamIndex, int LfoId), LfoModulation> _modulationMatrix = new();
     private bool _tabWasDown;
     private bool _leftWasDown;
     private bool _rightWasDown;
+    private bool _vWasDown;
 
     private double _elapsedTime;
     private string? _audioInitError;
@@ -50,6 +58,12 @@ public class MinimalGameWindow : GameWindow
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
 
         _visuals.Add(new SpectrumBars2d());
+        _visuals.Add(new RotatingCube3D());
+        _visuals.Add(new RotatingParticleSystem3D());
+
+        _visuals.Add(new CameraFilterGrayscale());
+
+        _selectedVisualIndex = Math.Min(1, _visuals.Count - 1); // Start on cube if available.
 
         _abletonLink.Initialize(_internalTempo.Bpm);
 
@@ -79,9 +93,10 @@ public class MinimalGameWindow : GameWindow
         ApplyLfoToParameters();
 
         UpdateSpectrumData();
+        HandleVisualHotkeys();
 
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         if (_visuals.Count > 0)
         {
             _visuals[_selectedVisualIndex].Render(_latestSpectrum, (float)_elapsedTime);
@@ -162,6 +177,13 @@ public class MinimalGameWindow : GameWindow
             var activeVisual = _visuals[_selectedVisualIndex];
             HandleParameterKeyboardNavigation(activeVisual);
             DrawParameters(activeVisual);
+
+            if (activeVisual is CameraFilterGrayscale cameraVisual)
+            {
+                DrawCameraControls(cameraVisual);
+            }
+
+            DrawLfoAssignmentMatrix(activeVisual, _selectedVisualIndex);
         }
 
         if (!string.IsNullOrWhiteSpace(_audioInitError))
@@ -309,7 +331,7 @@ public class MinimalGameWindow : GameWindow
                     var id = lfo.Id;
                     ImGui.TreePop();
                     ImGui.PopID();
-                    _lfoEngine.RemoveLfo(id);
+                    RemoveLfoAndAssignments(id);
                     break;
                 }
 
@@ -389,37 +411,35 @@ public class MinimalGameWindow : GameWindow
                 ImGui.PopStyleColor();
             }
 
-            DrawLfoAssignment(parameter, i);
             ImGui.Separator();
         }
 
         ImGui.TextDisabled("Tab: next parameter | Shift+Tab: previous | Left/Right: adjust base value");
     }
 
-    private void DrawLfoAssignment(IParameter parameter, int parameterIndex)
+    private static void DrawCameraControls(CameraFilterGrayscale cameraVisual)
     {
-        ImGui.PushID($"param_assign_{parameterIndex}");
+        ImGui.Separator();
+        ImGui.Text("Camera");
 
-        var selectedLabel = parameter.AssignedLfoId is null ? "None" : $"LFO {parameter.AssignedLfoId.Value}";
-        if (ImGui.BeginCombo("LFO", selectedLabel))
+        if (ImGui.Button("Refresh Devices"))
         {
-            var noneSelected = parameter.AssignedLfoId is null;
-            if (ImGui.Selectable("None", noneSelected))
-            {
-                parameter.AssignedLfoId = null;
-            }
+            cameraVisual.RefreshDevices();
+        }
 
-            if (noneSelected)
+        var selectedLabel = $"Device {cameraVisual.SelectedDeviceIndex}";
+        if (cameraVisual.AvailableDeviceIndices.Count == 0)
+        {
+            ImGui.TextDisabled("No devices found");
+        }
+        else if (ImGui.BeginCombo("Camera Device", selectedLabel))
+        {
+            foreach (var deviceIndex in cameraVisual.AvailableDeviceIndices)
             {
-                ImGui.SetItemDefaultFocus();
-            }
-
-            foreach (var lfo in _lfoEngine.Lfos)
-            {
-                var selected = parameter.AssignedLfoId == lfo.Id;
-                if (ImGui.Selectable($"LFO {lfo.Id}", selected))
+                var selected = deviceIndex == cameraVisual.SelectedDeviceIndex;
+                if (ImGui.Selectable($"Device {deviceIndex}", selected))
                 {
-                    parameter.AssignedLfoId = lfo.Id;
+                    cameraVisual.SetSelectedDeviceIndex(deviceIndex);
                 }
 
                 if (selected)
@@ -431,19 +451,100 @@ public class MinimalGameWindow : GameWindow
             ImGui.EndCombo();
         }
 
-        var scale = parameter.LfoScale;
-        if (ImGui.SliderFloat("Scale", ref scale, -200f, 200f, "%.2f"))
+        ImGui.TextDisabled(cameraVisual.CameraStatus);
+    }
+
+    private void DrawLfoAssignmentMatrix(IVisual visual, int visualIndex)
+    {
+        ImGui.Text("Mod Matrix");
+
+        if (_lfoEngine.Lfos.Count == 0)
         {
-            parameter.LfoScale = scale;
+            ImGui.TextDisabled("Add an LFO to assign modulation.");
+            return;
         }
 
-        var offset = parameter.LfoOffset;
-        if (ImGui.SliderFloat("Offset", ref offset, -200f, 200f, "%.2f"))
+        var columns = 1 + _lfoEngine.Lfos.Count;
+        var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollX;
+        if (!ImGui.BeginTable("LfoModMatrix", columns, flags, new System.Numerics.Vector2(780, 260)))
         {
-            parameter.LfoOffset = offset;
+            return;
         }
 
-        ImGui.PopID();
+        ImGui.TableSetupColumn("Parameter", ImGuiTableColumnFlags.WidthFixed, 160);
+        foreach (var lfo in _lfoEngine.Lfos)
+        {
+            ImGui.TableSetupColumn($"LFO {lfo.Id}", ImGuiTableColumnFlags.WidthFixed, 170);
+        }
+
+        ImGui.TableHeadersRow();
+
+        for (var row = 0; row < visual.Parameters.Count; row++)
+        {
+            var parameter = visual.Parameters[row];
+
+            ImGui.TableNextRow();
+            ImGui.TableSetColumnIndex(0);
+            ImGui.Text(parameter.Name);
+
+            for (var lfoCol = 0; lfoCol < _lfoEngine.Lfos.Count; lfoCol++)
+            {
+                var lfo = _lfoEngine.Lfos[lfoCol];
+                var key = (visualIndex, row, lfo.Id);
+
+                ImGui.TableSetColumnIndex(lfoCol + 1);
+                ImGui.PushID($"cell_{visualIndex}_{row}_{lfo.Id}");
+
+                var assigned = _modulationMatrix.TryGetValue(key, out var modulation);
+                if (ImGui.Checkbox("Assign", ref assigned))
+                {
+                    if (assigned)
+                    {
+                        _modulationMatrix[key] = modulation ?? new LfoModulation();
+                    }
+                    else
+                    {
+                        _modulationMatrix.Remove(key);
+                    }
+                }
+
+                if (assigned)
+                {
+                    modulation ??= new LfoModulation();
+                    _modulationMatrix[key] = modulation;
+
+                    var scale = modulation.Scale;
+                    ImGui.SetNextItemWidth(150);
+                    if (ImGui.SliderFloat("##scale", ref scale, 0f, 2f, "Scale %.2f"))
+                    {
+                        modulation.Scale = scale;
+                    }
+
+                    var offset = modulation.Offset;
+                    ImGui.SetNextItemWidth(150);
+                    if (ImGui.SliderFloat("##offset", ref offset, -1f, 1f, "Offset %.2f"))
+                    {
+                        modulation.Offset = offset;
+                    }
+                }
+
+                ImGui.PopID();
+            }
+        }
+
+        ImGui.EndTable();
+    }
+
+    private void HandleVisualHotkeys()
+    {
+        var vDown = KeyboardState.IsKeyDown(Keys.V);
+        if (vDown && !_vWasDown && _visuals.Count > 0)
+        {
+            _selectedVisualIndex = (_selectedVisualIndex + 1) % _visuals.Count;
+            Console.WriteLine($"[Visual] Switched to: {_visuals[_selectedVisualIndex].Name}");
+        }
+
+        _vWasDown = vDown;
     }
 
     private void HandleParameterKeyboardNavigation(IVisual visual)
@@ -507,13 +608,38 @@ public class MinimalGameWindow : GameWindow
         }
     }
 
+    private void RemoveLfoAndAssignments(int lfoId)
+    {
+        _lfoEngine.RemoveLfo(lfoId);
+
+        var keysToRemove = _modulationMatrix.Keys.Where(k => k.LfoId == lfoId).ToArray();
+        foreach (var key in keysToRemove)
+        {
+            _modulationMatrix.Remove(key);
+        }
+    }
+
     private void ApplyLfoToParameters()
     {
-        foreach (var visual in _visuals)
+        for (var visualIndex = 0; visualIndex < _visuals.Count; visualIndex++)
         {
-            foreach (var parameter in visual.Parameters)
+            var visual = _visuals[visualIndex];
+            for (var paramIndex = 0; paramIndex < visual.Parameters.Count; paramIndex++)
             {
-                parameter.ApplyLfo(_lfoEngine);
+                var parameter = visual.Parameters[paramIndex];
+                var modulationSum = 0f;
+
+                foreach (var lfo in _lfoEngine.Lfos)
+                {
+                    var key = (visualIndex, paramIndex, lfo.Id);
+                    if (_modulationMatrix.TryGetValue(key, out var modulation) &&
+                        _lfoEngine.TryGetOutput(lfo.Id, out var lfoValue))
+                    {
+                        modulationSum += (lfoValue * modulation.Scale) + modulation.Offset;
+                    }
+                }
+
+                parameter.ApplyCombinedModulation(modulationSum);
             }
         }
     }

@@ -48,6 +48,18 @@
               "target": "Package",
               "version": "[4.0.2, )"
             },
+            "OneWare.OpenCvSharp4.runtime.osx-arm64": {
+              "target": "Package",
+              "version": "[4.13.0.18, )"
+            },
+            "OpenCvSharp4": {
+              "target": "Package",
+              "version": "[4.13.0.20260602, )"
+            },
+            "OpenCvSharp4.runtime.win": {
+              "target": "Package",
+              "version": "[4.13.0.20260602, )"
+            },
             "OpenTK": {
               "target": "Package",
               "version": "[4.9.4, )"
