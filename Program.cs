@@ -91,6 +91,7 @@ public class MinimalGameWindow : GameWindow
 
         _visuals.Add(new CameraFilterGrayscale());
         _visuals.Add(new CameraFilterEdgeDetection());
+        _visuals.Add(new CameraSnapshotPeakHold());
 
         _selectedVisualIndex = Math.Min(1, _visuals.Count - 1); // Start on cube if available.
 
