@@ -11,6 +11,8 @@ public sealed partial class VisualPipeline
 
         private readonly Parameter<int> _gridColumns = new("Cubist Delay / Grid Columns", 1, 64, 8);
         private readonly Parameter<int> _gridRows = new("Cubist Delay / Grid Rows", 1, 64, 8);
+        private readonly Parameter<int> _columnDelayMode = new("Cubist Delay / Column Mode (0 Rand,1 Inc,2 Dec,3 Center,4 Center Inv)", 0, 4, 0);
+        private readonly Parameter<int> _rowDelayMode = new("Cubist Delay / Row Mode (0 Rand,1 Inc,2 Dec,3 Center,4 Center Inv)", 0, 4, 0);
         private readonly Parameter<float> _maxDelaySeconds = new("Cubist Delay / Max Delay (s)", 0f, 2f, 2f);
         private readonly Parameter<float> _randomSeed = new("Cubist Delay / Random Seed", 0f, 1000f, 37f);
         private readonly Parameter<float> _mix = new("Cubist Delay / Mix", 0f, 1f, 1f);
@@ -33,6 +35,8 @@ public sealed partial class VisualPipeline
         private int _uHistoryArray;
         private int _uGridColumns;
         private int _uGridRows;
+        private int _uColumnMode;
+        private int _uRowMode;
         private int _uHistoryLength;
         private int _uMaxHistory;
         private int _uLatestLayer;
@@ -47,6 +51,8 @@ public sealed partial class VisualPipeline
             [
                 _gridColumns,
                 _gridRows,
+                _columnDelayMode,
+                _rowDelayMode,
                 _maxDelaySeconds,
                 _randomSeed,
                 _mix
@@ -87,6 +93,8 @@ public sealed partial class VisualPipeline
 
                 uniform int uGridColumns;
                 uniform int uGridRows;
+                uniform int uColumnMode;
+                uniform int uRowMode;
                 uniform int uHistoryLength;
                 uniform int uMaxHistory;
                 uniform int uLatestLayer;
@@ -102,6 +110,59 @@ public sealed partial class VisualPipeline
                     return fract((p3.x + p3.y) * p3.z);
                 }
 
+                float axisLinearIncrease(int index, int count)
+                {
+                    if (count <= 1)
+                    {
+                        return 0.0;
+                    }
+
+                    return float(index) / float(count - 1);
+                }
+
+                float axisCenterDistanceNorm(int index, int count)
+                {
+                    if (count <= 1)
+                    {
+                        return 0.0;
+                    }
+
+                    float c = 0.5 * float(count - 1);
+                    float d = abs(float(index) - c);
+                    float maxD = max(c, 1e-5);
+                    return clamp(d / maxD, 0.0, 1.0);
+                }
+
+                float axisDelayNorm(int mode, int index, int count, float seedSalt)
+                {
+                    int clampedMode = clamp(mode, 0, 4);
+
+                    if (clampedMode == 0)
+                    {
+                        return hash12(vec2(float(index) + seedSalt, float(count) + seedSalt * 1.37));
+                    }
+
+                    if (clampedMode == 1)
+                    {
+                        return axisLinearIncrease(index, count);
+                    }
+
+                    if (clampedMode == 2)
+                    {
+                        return 1.0 - axisLinearIncrease(index, count);
+                    }
+
+                    float centerNorm = axisCenterDistanceNorm(index, count);
+                    if (clampedMode == 3)
+                    {
+                        // Center has minimum delay, edges maximum.
+                        return centerNorm;
+                    }
+
+                    // clampedMode == 4: center has maximum delay.
+                    return 1.0 - centerNorm;
+                }
+
                 void main()
                 {
                     vec3 current = texture(uCurrentTexture, vUv).rgb;
@@ -111,8 +172,24 @@ public sealed partial class VisualPipeline
                     vec2 gridF = vec2(float(gridX), float(gridY));
                     vec2 cell = floor(clamp(vUv, vec2(0.0), vec2(0.999999)) * gridF);
 
-                    float rnd = hash12(cell + vec2(uRandomSeed * 0.173, uRandomSeed * 0.619));
-                    float delaySeconds = rnd * max(uMaxDelaySeconds, 0.0);
+                    int columnIndex = int(cell.x);
+                    int rowIndex = int(cell.y);
+
+                    float delayNorm;
+                    if (uColumnMode == 0 && uRowMode == 0)
+                    {
+                        // Preserve the original behavior when both are random:
+                        // unique random delay per tile.
+                        delayNorm = hash12(cell + vec2(uRandomSeed * 0.173, uRandomSeed * 0.619));
+                    }
+                    else
+                    {
+                        float columnNorm = axisDelayNorm(uColumnMode, columnIndex, gridX, uRandomSeed * 0.113 + 11.0);
+                        float rowNorm = axisDelayNorm(uRowMode, rowIndex, gridY, uRandomSeed * 0.271 + 29.0);
+                        delayNorm = clamp((columnNorm + rowNorm) * 0.5, 0.0, 1.0);
+                    }
+
+                    float delaySeconds = delayNorm * max(uMaxDelaySeconds, 0.0);
 
                     int historyLength = max(uHistoryLength, 1);
                     float fps = max(uFramesPerSecond, 1.0);
@@ -132,6 +209,8 @@ public sealed partial class VisualPipeline
             _uHistoryArray = GL.GetUniformLocation(_program, "uHistoryArray");
             _uGridColumns = GL.GetUniformLocation(_program, "uGridColumns");
             _uGridRows = GL.GetUniformLocation(_program, "uGridRows");
+            _uColumnMode = GL.GetUniformLocation(_program, "uColumnMode");
+            _uRowMode = GL.GetUniformLocation(_program, "uRowMode");
             _uHistoryLength = GL.GetUniformLocation(_program, "uHistoryLength");
             _uMaxHistory = GL.GetUniformLocation(_program, "uMaxHistory");
             _uLatestLayer = GL.GetUniformLocation(_program, "uLatestLayer");
@@ -244,6 +323,8 @@ public sealed partial class VisualPipeline
             GL.UseProgram(_program);
             GL.Uniform1(_uGridColumns, _gridColumns.CurrentValue);
             GL.Uniform1(_uGridRows, _gridRows.CurrentValue);
+            GL.Uniform1(_uColumnMode, _columnDelayMode.CurrentValue);
+            GL.Uniform1(_uRowMode, _rowDelayMode.CurrentValue);
             GL.Uniform1(_uHistoryLength, historyLength);
             GL.Uniform1(_uMaxHistory, MaxHistoryFrames);
             GL.Uniform1(_uLatestLayer, _latestLayer);
