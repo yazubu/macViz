@@ -167,7 +167,8 @@ public class MinimalGameWindow : GameWindow
         _visuals.Add(new CameraSnapshotPeakHold());
         _visuals.Add(new VisualPipeline());
 
-        _selectedVisualIndex = Math.Min(1, _visuals.Count - 1); // Start on cube if available.
+        var pipelineIndex = _visuals.FindIndex(v => v is VisualPipeline);
+        _selectedVisualIndex = pipelineIndex >= 0 ? pipelineIndex : Math.Max(0, _visuals.Count - 1); // Default to Visual Pipeline.
 
         AddFftSource();
         TryLoadPipelinePresetBankFromDisk();
