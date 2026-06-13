@@ -271,6 +271,7 @@ public sealed class ImGuiController : IDisposable
         GL.Viewport(0, 0, fbWidth, fbHeight);
 
         var projection = OpenTK.Mathematics.Matrix4.CreateOrthographicOffCenter(0f, drawData.DisplaySize.X, drawData.DisplaySize.Y, 0f, -1f, 1f);
+        GL.ActiveTexture(TextureUnit.Texture0);
         GL.UseProgram(_shader);
         GL.Uniform1(_attribLocationTex, 0);
         GL.UniformMatrix4(_attribLocationProjMtx, false, ref projection);
@@ -316,6 +317,7 @@ public sealed class ImGuiController : IDisposable
             {
                 var cmd = cmdList.CmdBuffer[cmdIndex];
 
+                GL.ActiveTexture(TextureUnit.Texture0);
                 GL.BindTexture(TextureTarget.Texture2D, (int)cmd.TextureId);
                 var clip = cmd.ClipRect;
                 GL.Scissor(

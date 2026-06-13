@@ -12,6 +12,7 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
     private List<int> _deviceIndices = [];
     private int _selectedDeviceIndex;
     private string _cameraStatus = "Not initialized";
+    private bool _cameraReinitPending;
 
     private int _shader;
     private int _vao;
@@ -50,6 +51,8 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         if (!_deviceIndices.Contains(_selectedDeviceIndex))
         {
             _selectedDeviceIndex = _deviceIndices[0];
+            _cameraReinitPending = true;
+            _cameraStatus = $"Switching to device {_selectedDeviceIndex}...";
         }
     }
 
@@ -61,7 +64,8 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         }
 
         _selectedDeviceIndex = deviceIndex;
-        ReinitializeCamera();
+        _cameraReinitPending = true;
+        _cameraStatus = $"Switching to device {_selectedDeviceIndex}...";
     }
 
     public void Render(float[] spectrum, float time)
@@ -70,6 +74,7 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         GL.Disable(EnableCap.CullFace);
         GL.Disable(EnableCap.ScissorTest);
 
+        HandlePendingCameraReinitialize();
         EnsureCameraInitialized();
         if (_cameraInput is null)
         {
@@ -123,10 +128,16 @@ public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
         }
     }
 
-    private void ReinitializeCamera()
+    private void HandlePendingCameraReinitialize()
     {
+        if (!_cameraReinitPending)
+        {
+            return;
+        }
+
         _cameraInput?.Dispose();
         _cameraInput = null;
+        _cameraReinitPending = false;
         _cameraStatus = $"Reinitializing device {_selectedDeviceIndex}...";
     }
 

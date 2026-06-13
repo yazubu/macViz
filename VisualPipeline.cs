@@ -15,6 +15,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
     private List<int> _deviceIndices = [];
     private int _selectedDeviceIndex;
     private string _cameraStatus = "Not initialized";
+    private bool _cameraReinitPending;
 
     private int _quadVao;
     private int _quadVbo;
@@ -80,6 +81,8 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         if (!_deviceIndices.Contains(_selectedDeviceIndex))
         {
             _selectedDeviceIndex = _deviceIndices[0];
+            _cameraReinitPending = true;
+            _cameraStatus = $"Switching to device {_selectedDeviceIndex}...";
         }
     }
 
@@ -91,9 +94,8 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         }
 
         _selectedDeviceIndex = deviceIndex;
-        _cameraInput?.Dispose();
-        _cameraInput = null;
-        _cameraStatus = $"Reinitializing device {_selectedDeviceIndex}...";
+        _cameraReinitPending = true;
+        _cameraStatus = $"Switching to device {_selectedDeviceIndex}...";
     }
 
     public VisualPipelinePresetState CapturePresetState()
@@ -280,6 +282,7 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         GL.Disable(EnableCap.ScissorTest);
         ProcessPendingDisposals();
 
+        HandlePendingCameraReinitialize();
         EnsureCameraInitialized();
         _cameraInput?.UpdateTextureFromLatestFrame();
 
@@ -333,6 +336,19 @@ public sealed class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.BindVertexArray(0);
         GL.UseProgram(0);
+    }
+
+    private void HandlePendingCameraReinitialize()
+    {
+        if (!_cameraReinitPending)
+        {
+            return;
+        }
+
+        _cameraInput?.Dispose();
+        _cameraInput = null;
+        _cameraReinitPending = false;
+        _cameraStatus = $"Reinitializing device {_selectedDeviceIndex}...";
     }
 
     private void EnsureCameraInitialized()
