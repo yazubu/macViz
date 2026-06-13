@@ -1548,7 +1548,10 @@ public static class Program
 {
     public static void Main()
     {
-        var gameWindowSettings = GameWindowSettings.Default;
+        var gameWindowSettings = new GameWindowSettings
+        {
+            UpdateFrequency = 60.0
+        };
 
         var outputWindowSettings = new NativeWindowSettings
         {

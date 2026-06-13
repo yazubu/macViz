@@ -51,6 +51,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         new(MotionBlurEffectStage.TypeIdValue, "Motion Blur Effect", () => new MotionBlurEffectStage()),
         new(MotionIsolateEffectStage.TypeIdValue, "Motion Isolate Effect", () => new MotionIsolateEffectStage()),
         new(ChromaticSmearEffectStage.TypeIdValue, "Chromatic Smear Effect", () => new ChromaticSmearEffectStage()),
+        new(CubistEchoesEffectStage.TypeIdValue, "Cubist Echoes Effect", () => new CubistEchoesEffectStage()),
         new(CodecBleedEffectStage.TypeIdValue, "Codec Bleed Effect", () => new CodecBleedEffectStage()),
         new(ColorSwapEffectStage.TypeIdValue, "Color Swap Effect", () => new ColorSwapEffectStage()),
         new(TypographicMatrixEffectStage.TypeIdValue, "Typographic Matrix Effect", () => new TypographicMatrixEffectStage()),
@@ -591,6 +592,20 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         {
             GL.ActiveTexture(TextureUnit.Texture0 + unit);
             GL.BindTexture(TextureTarget.Texture2D, texture);
+        }
+
+        GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+    }
+
+    internal void DrawFullscreenWithTextureBindings(int shaderProgram, params (int TextureUnitIndex, TextureTarget Target, int TextureId)[] textures)
+    {
+        GL.UseProgram(shaderProgram);
+        GL.BindVertexArray(_quadVao);
+
+        foreach (var (unit, target, texture) in textures)
+        {
+            GL.ActiveTexture(TextureUnit.Texture0 + unit);
+            GL.BindTexture(target, texture);
         }
 
         GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, 0);
