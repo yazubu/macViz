@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("macViz")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d8ae5f551d7f15844eadce812358ceb4abe57326")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a38d83bd5e79a8fa35bb25191ff70c5d81729c5e")]
 [assembly: System.Reflection.AssemblyProductAttribute("macViz")]
 [assembly: System.Reflection.AssemblyTitleAttribute("macViz")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
