@@ -1446,8 +1446,14 @@ public class MinimalGameWindow : GameWindow
 
     private void UpdateAudioModulationBins()
     {
+        if (_fftSources.Count == 0)
+        {
+            return;
+        }
+
         var srcBins = _latestSpectrum.Length;
 
+        var maxRequestedBins = 1;
         foreach (var source in _fftSources)
         {
             if (source.BinCount <= 0)
@@ -1455,32 +1461,31 @@ public class MinimalGameWindow : GameWindow
                 source.BinCount = 1;
             }
 
+            if (source.BinCount > maxRequestedBins)
+            {
+                maxRequestedBins = source.BinCount;
+            }
+        }
+
+        var normalizedSpectrum = new float[srcBins];
+        for (var i = 0; i < srcBins; i++)
+        {
+            normalizedSpectrum[i] = NormalizeSpectrumDb(_latestSpectrum[i]);
+        }
+
+        var maxPrecisionBins = AggregateBins(normalizedSpectrum, maxRequestedBins);
+
+        foreach (var source in _fftSources)
+        {
             if (source.SmoothedBins.Length != source.BinCount)
             {
                 Array.Resize(ref source.SmoothedBins, source.BinCount);
                 source.VariabilityHistory.Clear();
             }
 
-            var rawBins = new float[source.BinCount];
-            for (var outBin = 0; outBin < source.BinCount; outBin++)
-            {
-                var start = (outBin * srcBins) / source.BinCount;
-                var end = ((outBin + 1) * srcBins) / source.BinCount;
-                if (end <= start)
-                {
-                    end = Math.Min(srcBins, start + 1);
-                }
-
-                var sum = 0f;
-                var count = 0;
-                for (var i = start; i < end; i++)
-                {
-                    sum += NormalizeSpectrumDb(_latestSpectrum[i]);
-                    count++;
-                }
-
-                rawBins[outBin] = count > 0 ? sum / count : 0f;
-            }
+            var rawBins = source.BinCount == maxRequestedBins
+                ? (float[])maxPrecisionBins.Clone()
+                : AggregateBins(maxPrecisionBins, source.BinCount);
 
             var binsForSmoothing = rawBins;
             if (source.ExpandVariability)
@@ -1591,6 +1596,43 @@ public class MinimalGameWindow : GameWindow
                 entry.Value.AudioBinIndex = source.BinCount - 1;
             }
         }
+    }
+
+    private static float[] AggregateBins(float[] inputBins, int outputBinCount)
+    {
+        if (outputBinCount <= 0)
+        {
+            outputBinCount = 1;
+        }
+
+        var sourceCount = inputBins.Length;
+        var output = new float[outputBinCount];
+        if (sourceCount == 0)
+        {
+            return output;
+        }
+
+        for (var outBin = 0; outBin < outputBinCount; outBin++)
+        {
+            var start = (outBin * sourceCount) / outputBinCount;
+            var end = ((outBin + 1) * sourceCount) / outputBinCount;
+            if (end <= start)
+            {
+                end = Math.Min(sourceCount, start + 1);
+            }
+
+            var sum = 0f;
+            var count = 0;
+            for (var i = start; i < end; i++)
+            {
+                sum += inputBins[i];
+                count++;
+            }
+
+            output[outBin] = count > 0 ? sum / count : 0f;
+        }
+
+        return output;
     }
 
     private static float NormalizeSpectrumDb(float db)
