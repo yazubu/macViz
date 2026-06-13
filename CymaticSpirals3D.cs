@@ -9,6 +9,9 @@ public sealed class CymaticSpirals3D : IVisual
     private readonly Parameter<float> _lowGain = new("LowGain", 0f, 3f, 1.35f);
     private readonly Parameter<float> _midGain = new("MidGain", 0f, 3f, 1.0f);
     private readonly Parameter<float> _highTwist = new("HighTwist", 0.25f, 8f, 1.8f);
+    private readonly Parameter<float> _lowDrive = new("LowDrive", 0f, 1f, 0.45f);
+    private readonly Parameter<float> _midDrive = new("MidDrive", 0f, 1f, 0.35f);
+    private readonly Parameter<float> _highDrive = new("HighDrive", 0f, 1f, 0.4f);
     private readonly Parameter<float> _harmonicF1 = new("HarmonicF1", 0.5f, 4f, 1.5f);
     private readonly Parameter<float> _harmonicF2 = new("HarmonicF2", 0.5f, 4f, 2.33f);
     private readonly Parameter<float> _thetaMax = new("ThetaMax", MathF.PI * 2f, MathF.PI * 20f, MathF.PI * 10f);
@@ -47,6 +50,9 @@ public sealed class CymaticSpirals3D : IVisual
             _lowGain,
             _midGain,
             _highTwist,
+            _lowDrive,
+            _midDrive,
+            _highDrive,
             _harmonicF1,
             _harmonicF2,
             _thetaMax,
@@ -74,7 +80,9 @@ public sealed class CymaticSpirals3D : IVisual
         var sampleCount = Math.Clamp(_samples.CurrentValue, 16, 4096);
         EnsureVertexCapacity(sampleCount);
 
-        var (low, mid, high) = AnalyzeBands(spectrum);
+        var low = _lowDrive.CurrentValue;
+        var mid = _midDrive.CurrentValue;
+        var high = _highDrive.CurrentValue;
 
         var aLow = (0.25f + (low * 1.75f)) * _lowGain.CurrentValue;
         var aMid = (0.2f + (mid * 1.4f)) * _midGain.CurrentValue;
@@ -205,48 +213,6 @@ public sealed class CymaticSpirals3D : IVisual
         _lineVertices = new float[_vertexCapacity * 6];
     }
 
-    private static (float Low, float Mid, float High) AnalyzeBands(float[] spectrum)
-    {
-        if (spectrum.Length == 0)
-        {
-            return (0f, 0f, 0f);
-        }
-
-        var n = spectrum.Length;
-        var lowEnd = Math.Max(1, (int)(n * 0.1f));
-        var midEnd = Math.Max(lowEnd + 1, (int)(n * 0.45f));
-
-        var low = AverageNormalizedDb(spectrum, 0, lowEnd);
-        var mid = AverageNormalizedDb(spectrum, lowEnd, midEnd);
-        var high = AverageNormalizedDb(spectrum, midEnd, n);
-
-        return (low, mid, high);
-    }
-
-    private static float AverageNormalizedDb(float[] spectrum, int startInclusive, int endExclusive)
-    {
-        startInclusive = Math.Clamp(startInclusive, 0, spectrum.Length);
-        endExclusive = Math.Clamp(endExclusive, startInclusive + 1, spectrum.Length);
-
-        var sum = 0f;
-        var count = 0;
-
-        for (var i = startInclusive; i < endExclusive; i++)
-        {
-            sum += NormalizeSpectrumDb(spectrum[i]);
-            count++;
-        }
-
-        return count > 0 ? sum / count : 0f;
-    }
-
-    private static float NormalizeSpectrumDb(float db)
-    {
-        const float minDb = -100f;
-        const float maxDb = 0f;
-        var normalized = (db - minDb) / (maxDb - minDb);
-        return Math.Clamp(normalized, 0f, 1f);
-    }
 
     private static void HsvToRgb(float hueDeg, float sat, float val, out float r, out float g, out float b)
     {

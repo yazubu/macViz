@@ -55,7 +55,10 @@ public class MinimalGameWindow : GameWindow
         public int Id;
         public int BinCount = 8;
         public float Smoothing = 0.75f;
+        public bool ExpandVariability;
+        public float VariabilityWindowSeconds = 2f;
         public float[] SmoothedBins = new float[8];
+        public Queue<(double Time, float[] Bins)> VariabilityHistory = new();
     }
 
     private sealed class PipelinePresetBank
@@ -88,6 +91,8 @@ public class MinimalGameWindow : GameWindow
         public int SourceId { get; set; }
         public int BinCount { get; set; } = 8;
         public float Smoothing { get; set; } = 0.75f;
+        public bool ExpandVariability { get; set; }
+        public float VariabilityWindowSeconds { get; set; } = 2f;
     }
 
     private sealed class LfoAssignmentDto
@@ -471,6 +476,7 @@ public class MinimalGameWindow : GameWindow
                 {
                     source.BinCount = bins;
                     Array.Resize(ref source.SmoothedBins, source.BinCount);
+                    source.VariabilityHistory.Clear();
                     SanitizeAudioBinAssignments();
                 }
 
@@ -478,6 +484,22 @@ public class MinimalGameWindow : GameWindow
                 if (ImGui.SliderFloat("Smoothing", ref smoothing, 0f, 0.99f, "%.2f"))
                 {
                     source.Smoothing = Math.Clamp(smoothing, 0f, 0.99f);
+                }
+
+                var expandVariability = source.ExpandVariability;
+                if (ImGui.Checkbox("Expand Variability", ref expandVariability))
+                {
+                    source.ExpandVariability = expandVariability;
+                    source.VariabilityHistory.Clear();
+                }
+
+                if (source.ExpandVariability)
+                {
+                    var variabilityWindowSeconds = source.VariabilityWindowSeconds;
+                    if (ImGui.SliderFloat("Variability Window (s)", ref variabilityWindowSeconds, 0.2f, 10f, "%.1f s"))
+                    {
+                        source.VariabilityWindowSeconds = Math.Clamp(variabilityWindowSeconds, 0.2f, 10f);
+                    }
                 }
 
                 if (ImGui.Button("Remove FFT Source"))
@@ -721,7 +743,10 @@ public class MinimalGameWindow : GameWindow
 
             if (ImGui.TreeNode($"FFT Source {source.Id} Preview"))
             {
-                ImGui.TextDisabled($"Bins: {source.BinCount} | Smoothing: {source.Smoothing:F2}");
+                var expandLabel = source.ExpandVariability
+                    ? $"On ({source.VariabilityWindowSeconds:F1}s)"
+                    : "Off";
+                ImGui.TextDisabled($"Bins: {source.BinCount} | Smoothing: {source.Smoothing:F2} | Expand: {expandLabel}");
                 for (var bin = 0; bin < source.SmoothedBins.Length; bin++)
                 {
                     var value = source.SmoothedBins[bin];
@@ -1042,7 +1067,9 @@ public class MinimalGameWindow : GameWindow
             {
                 SourceId = fft.Id,
                 BinCount = fft.BinCount,
-                Smoothing = fft.Smoothing
+                Smoothing = fft.Smoothing,
+                ExpandVariability = fft.ExpandVariability,
+                VariabilityWindowSeconds = fft.VariabilityWindowSeconds
             });
         }
 
@@ -1124,6 +1151,8 @@ public class MinimalGameWindow : GameWindow
                 Id = _nextFftSourceId++,
                 BinCount = Math.Clamp(fftState.BinCount, 1, 64),
                 Smoothing = Math.Clamp(fftState.Smoothing, 0f, 0.99f),
+                ExpandVariability = fftState.ExpandVariability,
+                VariabilityWindowSeconds = Math.Clamp(fftState.VariabilityWindowSeconds, 0.2f, 10f),
                 SmoothedBins = new float[Math.Clamp(fftState.BinCount, 1, 64)]
             };
 
@@ -1429,8 +1458,10 @@ public class MinimalGameWindow : GameWindow
             if (source.SmoothedBins.Length != source.BinCount)
             {
                 Array.Resize(ref source.SmoothedBins, source.BinCount);
+                source.VariabilityHistory.Clear();
             }
 
+            var rawBins = new float[source.BinCount];
             for (var outBin = 0; outBin < source.BinCount; outBin++)
             {
                 var start = (outBin * srcBins) / source.BinCount;
@@ -1448,9 +1479,59 @@ public class MinimalGameWindow : GameWindow
                     count++;
                 }
 
-                var raw = count > 0 ? sum / count : 0f;
-                var smoothing = Math.Clamp(source.Smoothing, 0f, 0.99f);
-                source.SmoothedBins[outBin] = (source.SmoothedBins[outBin] * smoothing) + (raw * (1f - smoothing));
+                rawBins[outBin] = count > 0 ? sum / count : 0f;
+            }
+
+            var binsForSmoothing = rawBins;
+            if (source.ExpandVariability)
+            {
+                var windowSeconds = Math.Clamp(source.VariabilityWindowSeconds, 0.2f, 10f);
+                source.VariabilityWindowSeconds = windowSeconds;
+
+                source.VariabilityHistory.Enqueue((_elapsedTime, (float[])rawBins.Clone()));
+                var cutoff = _elapsedTime - windowSeconds;
+                while (source.VariabilityHistory.Count > 0 && source.VariabilityHistory.Peek().Time < cutoff)
+                {
+                    source.VariabilityHistory.Dequeue();
+                }
+
+                var expandedBins = new float[source.BinCount];
+                for (var outBin = 0; outBin < source.BinCount; outBin++)
+                {
+                    var min = float.MaxValue;
+                    var max = float.MinValue;
+
+                    foreach (var sample in source.VariabilityHistory)
+                    {
+                        var value = sample.Bins[outBin];
+                        if (value < min) min = value;
+                        if (value > max) max = value;
+                    }
+
+                    if (min == float.MaxValue || max == float.MinValue)
+                    {
+                        expandedBins[outBin] = rawBins[outBin];
+                        continue;
+                    }
+
+                    var range = max - min;
+                    expandedBins[outBin] = range > 1e-5f
+                        ? Math.Clamp((rawBins[outBin] - min) / range, 0f, 1f)
+                        : 0f;
+                }
+
+                binsForSmoothing = expandedBins;
+            }
+            else if (source.VariabilityHistory.Count > 0)
+            {
+                source.VariabilityHistory.Clear();
+            }
+
+            var smoothing = Math.Clamp(source.Smoothing, 0f, 0.99f);
+            for (var outBin = 0; outBin < source.BinCount; outBin++)
+            {
+                var target = binsForSmoothing[outBin];
+                source.SmoothedBins[outBin] = (source.SmoothedBins[outBin] * smoothing) + (target * (1f - smoothing));
             }
         }
     }
@@ -1475,6 +1556,8 @@ public class MinimalGameWindow : GameWindow
             Id = id,
             BinCount = 8,
             Smoothing = 0.75f,
+            ExpandVariability = false,
+            VariabilityWindowSeconds = 2f,
             SmoothedBins = new float[8]
         });
     }
