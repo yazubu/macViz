@@ -161,6 +161,7 @@ public class MinimalGameWindow : GameWindow
         _visuals.Add(new SpectrumBars2d());
         _visuals.Add(new RotatingCube3D());
         _visuals.Add(new RotatingParticleSystem3D());
+        _visuals.Add(new CymaticSpirals3D());
 
         _visuals.Add(new CameraFilterGrayscale());
         _visuals.Add(new CameraFilterEdgeDetection());

@@ -24,11 +24,15 @@ public sealed class RotatingCube3D : IVisual
     public RotatingCube3D()
     {
         _parameters = [_rotationSpeedX, _rotationSpeedY, _colorIntensity];
-        CreateGlResources();
     }
 
     public void Render(float[] spectrum, float time)
     {
+        if (_shader == 0)
+        {
+            CreateGlResources();
+        }
+
         GL.Enable(EnableCap.DepthTest);
         GL.DepthFunc(DepthFunction.Lequal);
 

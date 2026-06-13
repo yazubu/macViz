@@ -7,6 +7,7 @@ public sealed partial class VisualPipeline
         public const string RotatingCubeTypeId = "source.rotatingCube";
         public const string SpectrumBarsTypeId = "source.spectrumBars";
         public const string ParticleSystemTypeId = "source.particleSystem";
+        public const string CymaticSpiralsTypeId = "source.cymaticSpirals";
 
         public override string TypeId => typeId;
         public override string Name => label;

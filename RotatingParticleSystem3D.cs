@@ -31,11 +31,15 @@ public sealed class RotatingParticleSystem3D : IVisual
     public RotatingParticleSystem3D()
     {
         _parameters = [_particleCount, _rotationSpeedX, _rotationSpeedY, _radius, _pointSize, _colorIntensity];
-        CreateGlResources();
     }
 
     public void Render(float[] spectrum, float time)
     {
+        if (_shader == 0)
+        {
+            CreateGlResources();
+        }
+
         GL.Enable(EnableCap.DepthTest);
         GL.DepthFunc(DepthFunction.Lequal);
         GL.Enable(EnableCap.Blend);

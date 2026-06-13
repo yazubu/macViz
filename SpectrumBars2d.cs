@@ -23,11 +23,15 @@ public sealed class SpectrumBars2d : IVisual
     public SpectrumBars2d()
     {
         _parameters = [_barCount, _colorHue, _scaleY];
-        CreateGlResources();
     }
 
     public void Render(float[] spectrum, float time)
     {
+        if (_shader == 0)
+        {
+            CreateGlResources();
+        }
+
         if (spectrum.Length == 0)
         {
             return;
