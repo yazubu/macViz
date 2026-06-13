@@ -51,11 +51,19 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         new(MotionBlurEffectStage.TypeIdValue, "Motion Blur Effect", () => new MotionBlurEffectStage()),
         new(CodecBleedEffectStage.TypeIdValue, "Codec Bleed Effect", () => new CodecBleedEffectStage()),
         new(ColorSwapEffectStage.TypeIdValue, "Color Swap Effect", () => new ColorSwapEffectStage()),
+        new(TypographicMatrixEffectStage.TypeIdValue, "Typographic Matrix Effect", () => new TypographicMatrixEffectStage()),
         new(KaleidoscopeEffectStage.TypeIdValue, "Kaleidoscope Effect", () => new KaleidoscopeEffectStage())
     ];
 
     public string Name => "Visual Pipeline";
-    public IReadOnlyList<IParameter> Parameters => _parameters;
+    public IReadOnlyList<IParameter> Parameters
+    {
+        get
+        {
+            RefreshDynamicStageParameters();
+            return _parameters;
+        }
+    }
 
     public IReadOnlyList<int> AvailableDeviceIndices => _deviceIndices;
     public int SelectedDeviceIndex => _selectedDeviceIndex;
@@ -102,6 +110,8 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
     public VisualPipelinePresetState CapturePresetState()
     {
+        RefreshDynamicStageParameters();
+
         var state = new VisualPipelinePresetState();
 
         foreach (var stage in _stages)
@@ -151,6 +161,17 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
                 if (stageState.ParameterValues.TryGetValue(parameter.Name, out var numericValue))
                 {
                     SetParameterNumericValue(parameter, numericValue);
+                }
+            }
+
+            if (stage.RefreshDynamicParameters())
+            {
+                foreach (var parameter in stage.Parameters)
+                {
+                    if (stageState.ParameterValues.TryGetValue(parameter.Name, out var numericValue))
+                    {
+                        SetParameterNumericValue(parameter, numericValue);
+                    }
                 }
             }
 
@@ -612,6 +633,23 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
     }
 
+    private void RefreshDynamicStageParameters()
+    {
+        var changed = false;
+        foreach (var stage in _stages)
+        {
+            if (stage.RefreshDynamicParameters())
+            {
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            RebuildParameters();
+        }
+    }
+
     private void RebuildParameters()
     {
         _parameters.Clear();
@@ -761,6 +799,11 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         public abstract IReadOnlyList<IParameter> Parameters { get; }
         public virtual bool SupportsInputSelection => true;
         public PipelineInputSource InputSource { get; set; } = PipelineInputSource.Previous;
+
+        public virtual bool RefreshDynamicParameters()
+        {
+            return false;
+        }
 
         public virtual void EnsureResources(VisualPipeline host)
         {

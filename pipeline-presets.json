@@ -197,6 +197,269 @@
           "FftAssignments": []
         }
       ]
+    },
+    {
+      "Name": "SH Wave over Edges",
+      "Pipeline": {
+        "Stages": [
+          {
+            "StageTypeId": "camera.source",
+            "InputSource": "Previous",
+            "ParameterValues": {}
+          },
+          {
+            "StageTypeId": "effect.edgeDetect",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Edge Effect / Strength": 1.4,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 0.789,
+              "Edge Effect / Invert": 0
+            }
+          },
+          {
+            "StageTypeId": "effect.radialWaves",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Radial Waves / Wave Length (px)": 96,
+              "Radial Waves / Wave Phase (rad)": 3.696,
+              "Radial Waves / Center X": 0.5,
+              "Radial Waves / Center Y": 0.5,
+              "Radial Waves / Amplitude (px)": 18.667
+            }
+          }
+        ]
+      },
+      "Lfos": [
+        {
+          "SourceId": 1,
+          "WaveType": 5,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 2,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 0.5
+        },
+        {
+          "SourceId": 3,
+          "WaveType": 5,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        }
+      ],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 8,
+          "Smoothing": 0.75
+        }
+      ],
+      "ParameterModulations": [
+        {
+          "ParameterIndex": 5,
+          "ParameterName": "Radial Waves / Wave Phase (rad)",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 2,
+              "Scale": 1,
+              "Offset": 0
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 6,
+          "ParameterName": "Radial Waves / Center X",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 1,
+              "Scale": 1,
+              "Offset": 1
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 7,
+          "ParameterName": "Radial Waves / Center Y",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 3,
+              "Scale": 1,
+              "Offset": 0
+            }
+          ],
+          "FftAssignments": []
+        }
+      ]
+    },
+    {
+      "Name": "FFT Living TypoMatrix",
+      "Pipeline": {
+        "Stages": [
+          {
+            "StageTypeId": "camera.source",
+            "InputSource": "Previous",
+            "ParameterValues": {}
+          },
+          {
+            "StageTypeId": "effect.radialWaves",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Radial Waves / Wave Length (px)": 116,
+              "Radial Waves / Wave Phase (rad)": 8.008,
+              "Radial Waves / Center X": 0.5,
+              "Radial Waves / Center Y": 0.5,
+              "Radial Waves / Amplitude (px)": 31.843
+            }
+          },
+          {
+            "StageTypeId": "effect.typographicMatrix",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Typographic Matrix / Cell Size (px)": 16.059,
+              "Typographic Matrix / Density Groups": 3,
+              "Typographic Matrix / Mix": 1,
+              "Typographic Matrix / Group 1 Brightness": 2.137,
+              "Typographic Matrix / Group 1 Size": 1,
+              "Typographic Matrix / Group 1 Color R": 0.711,
+              "Typographic Matrix / Group 1 Color G": 0.04,
+              "Typographic Matrix / Group 1 Color B": 0.1,
+              "Typographic Matrix / Group 2 Brightness": 1,
+              "Typographic Matrix / Group 2 Size": 1,
+              "Typographic Matrix / Group 2 Color R": 0.06666667,
+              "Typographic Matrix / Group 2 Color G": 0.6,
+              "Typographic Matrix / Group 2 Color B": 0.11111111,
+              "Typographic Matrix / Group 3 Brightness": 1.039,
+              "Typographic Matrix / Group 3 Size": 1,
+              "Typographic Matrix / Group 3 Color R": 0.083333336,
+              "Typographic Matrix / Group 3 Color G": 0.65000004,
+              "Typographic Matrix / Group 3 Color B": 0.12222222
+            }
+          },
+          {
+            "StageTypeId": "effect.colorSwap",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Color Swap Effect / Mode": 2,
+              "Color Swap Effect / Mix": 1
+            }
+          }
+        ]
+      },
+      "Lfos": [
+        {
+          "SourceId": 1,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 2,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 0.5
+        }
+      ],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 16,
+          "Smoothing": 0.75
+        }
+      ],
+      "ParameterModulations": [
+        {
+          "ParameterIndex": 1,
+          "ParameterName": "Radial Waves / Wave Phase (rad)",
+          "InteractionMode": 1,
+          "LfoAssignments": [],
+          "FftAssignments": [
+            {
+              "SourceId": 1,
+              "BinIndex": 0,
+              "Scale": 1.75,
+              "Offset": 0.46
+            }
+          ]
+        },
+        {
+          "ParameterIndex": 8,
+          "ParameterName": "Typographic Matrix / Group 1 Brightness",
+          "InteractionMode": 1,
+          "LfoAssignments": [],
+          "FftAssignments": [
+            {
+              "SourceId": 1,
+              "BinIndex": 0,
+              "Scale": 1.54,
+              "Offset": 0
+            }
+          ]
+        },
+        {
+          "ParameterIndex": 10,
+          "ParameterName": "Typographic Matrix / Group 1 Color R",
+          "InteractionMode": 1,
+          "LfoAssignments": [],
+          "FftAssignments": [
+            {
+              "SourceId": 1,
+              "BinIndex": 5,
+              "Scale": 1.02,
+              "Offset": 1
+            }
+          ]
+        },
+        {
+          "ParameterIndex": 18,
+          "ParameterName": "Typographic Matrix / Group 3 Brightness",
+          "InteractionMode": 1,
+          "LfoAssignments": [],
+          "FftAssignments": [
+            {
+              "SourceId": 1,
+              "BinIndex": 5,
+              "Scale": 1.69,
+              "Offset": 0
+            }
+          ]
+        },
+        {
+          "ParameterIndex": 23,
+          "ParameterName": "Color Swap Effect / Mode",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 2,
+              "Scale": 1,
+              "Offset": 0.71
+            }
+          ],
+          "FftAssignments": []
+        }
+      ]
     }
   ]
 }
