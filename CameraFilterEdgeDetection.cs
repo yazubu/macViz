@@ -2,7 +2,7 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace macViz;
 
-public sealed class CameraFilterEdgeDetection : IVisual, ICameraVisual
+public sealed class CameraFilterEdgeDetection : IVisual
 {
     private readonly Parameter<float> _edgeStrength = new("Edge Strength", 0f, 5f, 1.5f);
     private readonly Parameter<float> _threshold = new("Threshold", 0f, 1f, 0.2f);

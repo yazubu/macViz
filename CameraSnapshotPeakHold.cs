@@ -2,7 +2,7 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace macViz;
 
-public sealed class CameraSnapshotPeakHold : IVisual, ICameraVisual
+public sealed class CameraSnapshotPeakHold : IVisual
 {
     private const int MaxSnapshots = 8;
 

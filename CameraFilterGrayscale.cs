@@ -2,7 +2,7 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace macViz;
 
-public sealed class CameraFilterGrayscale : IVisual, ICameraVisual
+public sealed class CameraFilterGrayscale : IVisual
 {
     private readonly Parameter<float> _intensity = new("Intensity", 0f, 1f, 1f);
     private readonly Parameter<float> _threshold = new("Threshold", 0f, 1f, 0.45f);

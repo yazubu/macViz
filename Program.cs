@@ -393,11 +393,7 @@ public class MinimalGameWindow : GameWindow
         if (_visuals.Count > 0)
         {
             var activeVisual = _visuals[_selectedVisualIndex];
-            if (activeVisual is ICameraVisual cameraVisual)
-            {
-                DrawCameraControls(cameraVisual);
-            }
-            else if (activeVisual is VisualPipeline)
+            if (activeVisual is VisualPipeline)
             {
                 ImGui.TextDisabled("Camera selection is configured per Camera Source node.");
             }
@@ -794,43 +790,6 @@ public class MinimalGameWindow : GameWindow
         const string separator = " / ";
         var separatorIndex = parameterName.IndexOf(separator, StringComparison.Ordinal);
         return separatorIndex > 0 ? parameterName[(separatorIndex + separator.Length)..] : parameterName;
-    }
-
-    private static void DrawCameraControls(ICameraVisual cameraVisual)
-    {
-        ImGui.Separator();
-        ImGui.Text("Camera");
-
-        if (ImGui.Button("Refresh Devices"))
-        {
-            cameraVisual.RefreshDevices();
-        }
-
-        var selectedLabel = $"Device {cameraVisual.SelectedDeviceIndex}";
-        if (cameraVisual.AvailableDeviceIndices.Count == 0)
-        {
-            ImGui.TextDisabled("No devices found");
-        }
-        else if (ImGui.BeginCombo("Camera Device", selectedLabel))
-        {
-            foreach (var deviceIndex in cameraVisual.AvailableDeviceIndices)
-            {
-                var selected = deviceIndex == cameraVisual.SelectedDeviceIndex;
-                if (ImGui.Selectable($"Device {deviceIndex}", selected))
-                {
-                    cameraVisual.SetSelectedDeviceIndex(deviceIndex);
-                }
-
-                if (selected)
-                {
-                    ImGui.SetItemDefaultFocus();
-                }
-            }
-
-            ImGui.EndCombo();
-        }
-
-        ImGui.TextDisabled(cameraVisual.CameraStatus);
     }
 
     private void DrawAudioModulationControls()
