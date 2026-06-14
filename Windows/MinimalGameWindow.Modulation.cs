@@ -26,13 +26,13 @@ public partial class MinimalGameWindow
                 foreach (var lfo in _lfoEngine.Lfos)
                 {
                     var key = (parameter, lfo.Id);
-                    if (!_modulationMatrix.TryGetValue(key, out var modulation) ||
+                    if (!_modulationMatrix.ContainsKey(key) ||
                         !_lfoEngine.TryGetOutput(lfo.Id, out var lfoValue))
                     {
                         continue;
                     }
 
-                    lfoSum += (lfoValue * modulation.Scale) + modulation.Offset;
+                    lfoSum += lfoValue;
                     hasLfo = true;
                 }
 
@@ -46,31 +46,14 @@ public partial class MinimalGameWindow
                         continue;
                     }
 
-                    var audioValue = (GetAudioBinValue(fft.Id, audioMod.AudioBinIndex) * audioMod.Scale) + audioMod.Offset;
-                    fftSum += audioValue;
+                    fftSum += GetAudioBinValue(fft.Id, audioMod.AudioBinIndex);
                     hasFft = true;
                 }
 
                 var modulationFactor = 1f;
-                if (hasLfo && hasFft)
+                if (hasLfo || hasFft)
                 {
-                    var mode = _lfoFftInteractionModes.GetValueOrDefault(parameter, ModulationInteractionMode.Add);
-                    modulationFactor = mode switch
-                    {
-                        ModulationInteractionMode.Instead => fftSum,
-                        ModulationInteractionMode.Add => lfoSum + fftSum,
-                        ModulationInteractionMode.Subtract => lfoSum - fftSum,
-                        ModulationInteractionMode.Multiply => lfoSum * fftSum,
-                        _ => lfoSum + fftSum
-                    };
-                }
-                else if (hasLfo)
-                {
-                    modulationFactor = lfoSum;
-                }
-                else if (hasFft)
-                {
-                    modulationFactor = fftSum;
+                    modulationFactor = lfoSum + fftSum;
                 }
 
                 if (visual is VisualPipeline)
@@ -112,11 +95,6 @@ public partial class MinimalGameWindow
             _audioModulationMatrix.Remove(key);
         }
 
-        var modeKeysToRemove = _lfoFftInteractionModes.Keys.Where(k => !liveParameters.Contains(k)).ToArray();
-        foreach (var key in modeKeysToRemove)
-        {
-            _lfoFftInteractionModes.Remove(key);
-        }
     }
 
     private void UpdateAudioModulationBins()

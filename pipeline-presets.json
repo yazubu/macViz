@@ -78,12 +78,9 @@
         {
           "ParameterIndex": 6,
           "ParameterName": "Color Shift Effect / Blue Shift (px)",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 2,
-              "Scale": 1,
-              "Offset": 0
+              "SourceId": 2
             }
           ],
           "FftAssignments": []
@@ -91,17 +88,17 @@
         {
           "ParameterIndex": 11,
           "ParameterName": "Radial Blur Effect / Strength",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 1,
-              "Scale": 0.4,
-              "Offset": 1
+              "SourceId": 1
             }
           ],
           "FftAssignments": []
         }
-      ]
+      ],
+      "ModGraphNodePositions": [],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
     },
     {
       "Name": "SH Color Shift Zoom blur",
@@ -181,12 +178,9 @@
         {
           "ParameterIndex": 6,
           "ParameterName": "Color Shift Effect / Blue Shift (px)",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 2,
-              "Scale": 1,
-              "Offset": 0
+              "SourceId": 2
             }
           ],
           "FftAssignments": []
@@ -194,17 +188,17 @@
         {
           "ParameterIndex": 11,
           "ParameterName": "Zoom Blur Effect / Strength",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 1,
-              "Scale": 1,
-              "Offset": 0
+              "SourceId": 1
             }
           ],
           "FftAssignments": []
         }
-      ]
+      ],
+      "ModGraphNodePositions": [],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
     },
     {
       "Name": "SH Wave over Edges",
@@ -282,12 +276,9 @@
         {
           "ParameterIndex": 5,
           "ParameterName": "Radial Waves / Wave Phase (rad)",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 2,
-              "Scale": 1,
-              "Offset": 0
+              "SourceId": 2
             }
           ],
           "FftAssignments": []
@@ -295,12 +286,9 @@
         {
           "ParameterIndex": 6,
           "ParameterName": "Radial Waves / Center X",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 1,
-              "Scale": 1,
-              "Offset": 1
+              "SourceId": 1
             }
           ],
           "FftAssignments": []
@@ -308,17 +296,17 @@
         {
           "ParameterIndex": 7,
           "ParameterName": "Radial Waves / Center Y",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 3,
-              "Scale": 1,
-              "Offset": 0
+              "SourceId": 3
             }
           ],
           "FftAssignments": []
         }
-      ]
+      ],
+      "ModGraphNodePositions": [],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
     },
     {
       "Name": "FFT Living TypoMatrix",
@@ -409,73 +397,61 @@
         {
           "ParameterIndex": 1,
           "ParameterName": "Radial Waves / Wave Phase (rad)",
-          "InteractionMode": 1,
           "LfoAssignments": [],
           "FftAssignments": [
             {
               "SourceId": 1,
-              "BinIndex": 0,
-              "Scale": 1.75,
-              "Offset": 0.46
+              "BinIndex": 0
             }
           ]
         },
         {
           "ParameterIndex": 8,
           "ParameterName": "Typographic Matrix / Group 1 Brightness",
-          "InteractionMode": 1,
           "LfoAssignments": [],
           "FftAssignments": [
             {
               "SourceId": 1,
-              "BinIndex": 0,
-              "Scale": 1.54,
-              "Offset": 0
+              "BinIndex": 0
             }
           ]
         },
         {
           "ParameterIndex": 10,
           "ParameterName": "Typographic Matrix / Group 1 Color R",
-          "InteractionMode": 1,
           "LfoAssignments": [],
           "FftAssignments": [
             {
               "SourceId": 1,
-              "BinIndex": 5,
-              "Scale": 1.02,
-              "Offset": 1
+              "BinIndex": 5
             }
           ]
         },
         {
           "ParameterIndex": 18,
           "ParameterName": "Typographic Matrix / Group 3 Brightness",
-          "InteractionMode": 1,
           "LfoAssignments": [],
           "FftAssignments": [
             {
               "SourceId": 1,
-              "BinIndex": 5,
-              "Scale": 1.69,
-              "Offset": 0
+              "BinIndex": 5
             }
           ]
         },
         {
           "ParameterIndex": 23,
           "ParameterName": "Color Swap Effect / Mode",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 2,
-              "Scale": 1,
-              "Offset": 0.71
+              "SourceId": 2
             }
           ],
           "FftAssignments": []
         }
-      ]
+      ],
+      "ModGraphNodePositions": [],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
     },
     {
       "Name": "Coloured Edges",
@@ -557,7 +533,10 @@
           "VariabilityWindowSeconds": 2
         }
       ],
-      "ParameterModulations": []
+      "ParameterModulations": [],
+      "ModGraphNodePositions": [],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
     },
     {
       "Name": "Test",
@@ -705,7 +684,10 @@
           "VariabilityWindowSeconds": 2
         }
       ],
-      "ParameterModulations": []
+      "ParameterModulations": [],
+      "ModGraphNodePositions": [],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
     },
     {
       "Name": "Test2",
@@ -846,7 +828,10 @@
           "VariabilityWindowSeconds": 2
         }
       ],
-      "ParameterModulations": []
+      "ParameterModulations": [],
+      "ModGraphNodePositions": [],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
     },
     {
       "Name": "MultiCamera and static show",
@@ -1070,12 +1055,9 @@
         {
           "ParameterIndex": 6,
           "ParameterName": "Static Images / Trigger",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 1,
-              "Scale": 1,
-              "Offset": 1
+              "SourceId": 1
             }
           ],
           "FftAssignments": []
@@ -1083,12 +1065,9 @@
         {
           "ParameterIndex": 16,
           "ParameterName": "Signal Switch / Trigger",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 1,
-              "Scale": 1,
-              "Offset": 1
+              "SourceId": 1
             }
           ],
           "FftAssignments": []
@@ -1096,15 +1075,215 @@
         {
           "ParameterIndex": 36,
           "ParameterName": "Scale Effect / Scale",
-          "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 2,
-              "Scale": 0.14,
-              "Offset": 1
+              "SourceId": 2
             }
           ],
           "FftAssignments": []
+        }
+      ],
+      "ModGraphNodePositions": [],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
+    },
+    {
+      "Name": "stats test",
+      "Pipeline": {
+        "Nodes": [
+          {
+            "NodeId": 5,
+            "NodeKind": "Stage",
+            "StageTypeId": "camera.source",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 40,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Camera Source / Device Index": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 6,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.edgeDetect",
+            "InputAId": 5,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 360,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Edge Effect / Strength": 1.4,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 0.701,
+              "Edge Effect / Invert": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 7,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.snapshotPeak",
+            "InputAId": 6,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 680,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Snapshot Effect / Signal": 0,
+              "Snapshot Effect / Peak Threshold": 0.8,
+              "Snapshot Effect / Min Interval (s)": 0.2,
+              "Snapshot Effect / Hold Time (s)": 2.5,
+              "Snapshot Effect / Count": 8,
+              "Snapshot Effect / Opacity": 1,
+              "Snapshot Effect / Opacity Drop": 0.2,
+              "Snapshot Effect / Mix": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 8,
+            "NodeKind": "Output",
+            "StageTypeId": null,
+            "InputAId": 7,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 1000,
+            "PositionY": 94,
+            "ParameterValues": {},
+            "SourceImagePaths": []
+          }
+        ],
+        "Stages": []
+      },
+      "Lfos": [
+        {
+          "SourceId": 1,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": false,
+          "SyncSpeedMultiplier": 1
+        }
+      ],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 8,
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
+        }
+      ],
+      "ParameterModulations": [],
+      "ModGraphNodePositions": [
+        {
+          "NodeKey": "Stage 1 (Camera Source)",
+          "X": 200,
+          "Y": -10
+        },
+        {
+          "NodeKey": "Stage 2 (Edge Detection)",
+          "X": 217,
+          "Y": 105
+        },
+        {
+          "NodeKey": "Stage 3 (Snapshot Peak Hold)",
+          "X": 300,
+          "Y": 243
+        }
+      ],
+      "ModGraphProcessors": [
+        {
+          "ProcessorId": 1,
+          "Kind": "Absolute",
+          "X": 56,
+          "Y": 16,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Lfo",
+              "SourceId": 1,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 2,
+          "Kind": "Statistic",
+          "X": 83,
+          "Y": 147,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Processor",
+              "SourceId": 1,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 4,
+          "Kind": "Add",
+          "X": 418,
+          "Y": 227,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Fft",
+              "SourceId": 1,
+              "FftBinIndex": 2
+            },
+            {
+              "SourceKind": "Processor",
+              "SourceId": 2,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 5,
+          "Kind": "Statistic",
+          "X": 520,
+          "Y": -1,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Processor",
+              "SourceId": 4,
+              "FftBinIndex": 0
+            }
+          ]
+        }
+      ],
+      "ModGraphTargetLinks": [
+        {
+          "NodeKey": "Stage 2 (Edge Detection)",
+          "ParameterIndex": 4,
+          "ParameterName": "Edge Effect / Mix",
+          "Link": {
+            "SourceKind": "Processor",
+            "SourceId": 5,
+            "FftBinIndex": 0
+          }
         }
       ]
     }

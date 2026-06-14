@@ -25,6 +25,7 @@ public sealed class LFO
     public bool SyncEnabled { get; set; }
     public float SyncSpeedMultiplier { get; set; } = 1.0f;
     public float Output { get; private set; }
+    public float CurrentPhase { get; private set; }
 
     public LFO(int id)
     {
@@ -60,8 +61,26 @@ public sealed class LFO
             _ => 0f
         };
 
+        CurrentPhase = phase;
         _previousPhase = phase;
         return Output;
+    }
+
+    public float SampleWave(float phase)
+    {
+        phase %= 1f;
+        if (phase < 0f) phase += 1f;
+
+        return WaveType switch
+        {
+            LfoWaveType.Sine => MathF.Sin(phase * 2f * MathF.PI),
+            LfoWaveType.Square => phase < 0.5f ? 1f : -1f,
+            LfoWaveType.Sawtooth => (2f * phase) - 1f,
+            LfoWaveType.PWM => phase < Math.Clamp(DutyCycle, 0.05f, 0.95f) ? 1f : -1f,
+            LfoWaveType.Random => PreviewRandom(phase),
+            LfoWaveType.SampleAndHold => PreviewRandom(MathF.Floor(phase * 8f) / 8f),
+            _ => 0f
+        };
     }
 
     private float SampleAndHold(float currentPhase)
@@ -72,6 +91,12 @@ public sealed class LFO
         }
 
         return _sampleAndHoldValue;
+    }
+
+    private static float PreviewRandom(float seedPhase)
+    {
+        var x = MathF.Sin(seedPhase * 43758.5453f) * 143758.5453f;
+        return (x - MathF.Floor(x)) * 2f - 1f;
     }
 
     private float NextRandomValue() => (float)(_random.NextDouble() * 2.0 - 1.0);

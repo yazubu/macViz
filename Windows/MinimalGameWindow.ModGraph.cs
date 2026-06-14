@@ -17,7 +17,9 @@ public partial class MinimalGameWindow
         Absolute,
         Multiply,
         Constant,
-        Add
+        Add,
+        Statistic,
+        Normalize
     }
 
     private sealed class ModGraphSocket
@@ -26,7 +28,6 @@ public partial class MinimalGameWindow
         public IParameter? Parameter;
         public ModGraphSourceKind? SourceKind;
         public int? SourceId;
-        public LfoModulation Lfo = new();
         public AudioModulation Fft = new();
 
         public bool IsConnected => SourceKind.HasValue && SourceId.HasValue;
@@ -48,6 +49,13 @@ public partial class MinimalGameWindow
         public System.Numerics.Vector2 Position;
         public List<ModGraphSocket> Inputs = [];
         public float ConstantValue = 1f;
+        public float StatisticCurrent;
+        public float StatisticMin = float.PositiveInfinity;
+        public float StatisticMax = float.NegativeInfinity;
+        public List<float> StatisticHistory = [];
+        public double StatisticLastSampleTime = double.NegativeInfinity;
+        public float NormalizeOutputMin;
+        public float NormalizeOutputMax = 1f;
     }
 
     private readonly Dictionary<string, ModGraphTargetNode> _modGraphTargets = [];
@@ -57,6 +65,8 @@ public partial class MinimalGameWindow
     private (ModGraphSourceKind Kind, int Id)? _modGraphLinkStart;
     private int? _modGraphInspectorSocketId;
     private string? _modGraphInspectorNodeKey;
+    private int? _modGraphInspectorProcessorId;
+    private int? _modGraphInspectorProcessorInputSocketId;
     private System.Numerics.Vector2 _modGraphCanvasPan = new(24f, 24f);
 
     private void DrawModulationGraphEditor(VisualPipeline visualPipeline)
@@ -73,6 +83,10 @@ public partial class MinimalGameWindow
         if (ImGui.Button("Add Constant")) AddModGraphProcessorNode(ModGraphProcessorKind.Constant);
         ImGui.SameLine();
         if (ImGui.Button("Add Add")) AddModGraphProcessorNode(ModGraphProcessorKind.Add);
+        ImGui.SameLine();
+        if (ImGui.Button("Add Statistic")) AddModGraphProcessorNode(ModGraphProcessorKind.Statistic);
+        ImGui.SameLine();
+        if (ImGui.Button("Add Normalize")) AddModGraphProcessorNode(ModGraphProcessorKind.Normalize);
 
         ImGui.TextDisabled("Violet links: source/output → input socket. Pan: right/middle drag or Space+left drag. Drag node headers to move. Double-click link to disconnect.");
 
@@ -126,6 +140,11 @@ public partial class MinimalGameWindow
             20f);
         DrawModGraphTargetNodes(drawList, canvasMin, sourcePorts, drawnLinks, io, isSpaceDown, targetOrigin);
 
+        if (canvasHovered && ImGui.IsMouseClicked(ImGuiMouseButton.Left) && !ImGui.IsAnyItemHovered())
+        {
+            TrySelectModGraphLinkAtMouse(mousePos, drawnLinks);
+        }
+
         if (canvasHovered && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
             if (TryDisconnectModGraphLinkAtMouse(mousePos, drawnLinks))
@@ -171,7 +190,9 @@ public partial class MinimalGameWindow
             ImGui.PushID($"mod_proc_{processor.Id}");
             EnsureProcessorInputLayout(processor);
 
-            var height = MathF.Max(62f, 36f + (processor.Inputs.Count * 22f));
+            var statisticExtraHeight = processor.Kind == ModGraphProcessorKind.Statistic ? 148f : 0f;
+            var normalizeExtraHeight = processor.Kind == ModGraphProcessorKind.Normalize ? 44f : 0f;
+            var height = MathF.Max(62f, 36f + (processor.Inputs.Count * 22f) + statisticExtraHeight + normalizeExtraHeight);
             var nodeMin = new System.Numerics.Vector2(
                 canvasMin.X + _modGraphCanvasPan.X + processorOrigin.X + processor.Position.X,
                 canvasMin.Y + _modGraphCanvasPan.Y + processorOrigin.Y + processor.Position.Y);
@@ -220,11 +241,19 @@ public partial class MinimalGameWindow
 
                     ImGui.SetCursorScreenPos(new System.Numerics.Vector2(inputPos.X - 8f, inputPos.Y - 8f));
                     ImGui.InvisibleButton($"proc_in_{input.Id}", new System.Numerics.Vector2(16f, 16f));
-                    if (ImGui.IsItemClicked(ImGuiMouseButton.Left) && _modGraphLinkStart.HasValue)
+                    if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
                     {
-                        input.SourceKind = _modGraphLinkStart.Value.Kind;
-                        input.SourceId = _modGraphLinkStart.Value.Id;
-                        _modGraphLinkStart = null;
+                        if (_modGraphLinkStart.HasValue)
+                        {
+                            input.SourceKind = _modGraphLinkStart.Value.Kind;
+                            input.SourceId = _modGraphLinkStart.Value.Id;
+                            _modGraphLinkStart = null;
+                        }
+
+                        _modGraphInspectorProcessorId = processor.Id;
+                        _modGraphInspectorProcessorInputSocketId = input.Id;
+                        _modGraphInspectorNodeKey = null;
+                        _modGraphInspectorSocketId = null;
                     }
 
                     if (input.IsConnected && input.SourceKind.HasValue && input.SourceId.HasValue &&
@@ -243,6 +272,77 @@ public partial class MinimalGameWindow
                     if (ImGui.SmallButton("+In"))
                     {
                         processor.Inputs.Add(NewModGraphSocket());
+                    }
+                }
+
+                if (processor.Kind == ModGraphProcessorKind.Statistic)
+                {
+                    var statsY = nodeMin.Y + 58f;
+                    var hasConnectedInput = processor.Inputs.Any(x => x.IsConnected);
+                    var hasConnectedOutput = IsModGraphProcessorOutputConnected(processor.Id);
+                    var shouldShowStats = hasConnectedInput || hasConnectedOutput;
+
+                    if (!shouldShowStats)
+                    {
+                        drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 22f, statsY), ImGui.GetColorU32(new System.Numerics.Vector4(0.75f, 0.75f, 0.8f, 1f)), "Connect input or output to show signal history");
+                    }
+                    else
+                    {
+                        var hasSamples = !float.IsPositiveInfinity(processor.StatisticMin) && !float.IsNegativeInfinity(processor.StatisticMax);
+                        var currentText = hasSamples ? processor.StatisticCurrent.ToString("F3") : "-";
+                        var minText = hasSamples ? processor.StatisticMin.ToString("F3") : "-";
+                        var maxText = hasSamples ? processor.StatisticMax.ToString("F3") : "-";
+
+                        ImGui.SetCursorScreenPos(new System.Numerics.Vector2(nodeMin.X + 20f, statsY));
+                        var history = processor.StatisticHistory;
+                        if (history.Count > 1)
+                        {
+                            var values = history.ToArray();
+                            var minValue = values.Min();
+                            var maxValue = values.Max();
+                            if (MathF.Abs(maxValue - minValue) < 1e-5f)
+                            {
+                                minValue -= 0.5f;
+                                maxValue += 0.5f;
+                            }
+
+                            ImGui.PlotLines("##stat_history", ref values[0], values.Length, 0, string.Empty, minValue, maxValue, new System.Numerics.Vector2(220f, 64f));
+                        }
+                        else
+                        {
+                            ImGui.TextDisabled("Waiting for samples...");
+                        }
+
+                        drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 22f, statsY + 74f), ImGui.GetColorU32(new System.Numerics.Vector4(0.9f, 0.9f, 0.95f, 1f)), $"Cur: {currentText}   Min: {minText}   Max: {maxText}");
+
+                        ImGui.SetCursorScreenPos(new System.Numerics.Vector2(nodeMin.X + 178f, statsY + 70f));
+                        if (ImGui.SmallButton("Reset"))
+                        {
+                            processor.StatisticCurrent = 0f;
+                            processor.StatisticMin = float.PositiveInfinity;
+                            processor.StatisticMax = float.NegativeInfinity;
+                            processor.StatisticHistory.Clear();
+                            processor.StatisticLastSampleTime = double.NegativeInfinity;
+                        }
+                    }
+                }
+                else if (processor.Kind == ModGraphProcessorKind.Normalize)
+                {
+                    var outMin = processor.NormalizeOutputMin;
+                    var outMax = processor.NormalizeOutputMax;
+
+                    ImGui.SetCursorScreenPos(new System.Numerics.Vector2(nodeMin.X + 10f, nodeMin.Y + 56f));
+                    ImGui.SetNextItemWidth(210f);
+                    if (ImGui.SliderFloat("Out Min", ref outMin, -2f, 2f, "%.2f"))
+                    {
+                        processor.NormalizeOutputMin = outMin;
+                    }
+
+                    ImGui.SetCursorScreenPos(new System.Numerics.Vector2(nodeMin.X + 10f, nodeMin.Y + 80f));
+                    ImGui.SetNextItemWidth(210f);
+                    if (ImGui.SliderFloat("Out Max", ref outMax, -2f, 2f, "%.2f"))
+                    {
+                        processor.NormalizeOutputMax = outMax;
                     }
                 }
             }
@@ -311,7 +411,7 @@ public partial class MinimalGameWindow
 
                 var label = socket.Parameter is null
                     ? "(select parameter)"
-                    : ParameterUiHelpers.GetModMatrixParameterLabel(socket.Parameter);
+                    : $"{ParameterUiHelpers.GetModMatrixParameterLabel(socket.Parameter)} = {FormatParameterCurrentValue(socket.Parameter)}";
                 drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 22f, y), ImGui.GetColorU32(new System.Numerics.Vector4(0.9f, 0.9f, 0.95f, 1f)), label);
 
                 ImGui.SetCursorScreenPos(new System.Numerics.Vector2(socketPos.X - 8f, socketPos.Y - 8f));
@@ -322,15 +422,13 @@ public partial class MinimalGameWindow
                     {
                         socket.SourceKind = _modGraphLinkStart.Value.Kind;
                         socket.SourceId = _modGraphLinkStart.Value.Id;
-                        _modGraphInspectorSocketId = socket.Id;
-                        _modGraphInspectorNodeKey = target.Key;
                         _modGraphLinkStart = null;
                     }
-                    else
-                    {
-                        _modGraphInspectorSocketId = socket.Id;
-                        _modGraphInspectorNodeKey = target.Key;
-                    }
+
+                    _modGraphInspectorSocketId = socket.Id;
+                    _modGraphInspectorNodeKey = target.Key;
+                    _modGraphInspectorProcessorId = null;
+                    _modGraphInspectorProcessorInputSocketId = null;
                 }
 
                 if (socket.IsConnected && socket.SourceKind.HasValue && socket.SourceId.HasValue &&
@@ -349,6 +447,16 @@ public partial class MinimalGameWindow
         }
     }
 
+    private static string FormatParameterCurrentValue(IParameter parameter)
+    {
+        return parameter switch
+        {
+            Parameter<float> floatParameter => floatParameter.CurrentValue.ToString("F2"),
+            Parameter<int> intParameter => intParameter.CurrentValue.ToString(),
+            _ => "-"
+        };
+    }
+
     private void DrawModGraphSourceColumn(
         ImDrawListPtr drawList,
         float x,
@@ -365,12 +473,16 @@ public partial class MinimalGameWindow
         {
             ImGui.PushID($"{groupLabel}_{sourceId}");
             var nodeMin = new System.Numerics.Vector2(x, y);
-            var nodeMax = new System.Numerics.Vector2(x + 200f, y + 28f);
+            var nodeMax = new System.Numerics.Vector2(x + 240f, y + 86f);
             drawList.AddRectFilled(nodeMin, nodeMax, ImGui.GetColorU32(new System.Numerics.Vector4(0.16f, 0.13f, 0.2f, 1f)), 6f);
             drawList.AddRect(nodeMin, nodeMax, ImGui.GetColorU32(new System.Numerics.Vector4(0.45f, 0.3f, 0.65f, 1f)), 6f);
             drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 8f, nodeMin.Y + 6f), ImGui.GetColorU32(new System.Numerics.Vector4(1f, 1f, 1f, 1f)), $"{groupLabel} {sourceId}");
 
-            var output = new System.Numerics.Vector2(nodeMax.X - 10f, nodeMin.Y + 14f);
+            ImGui.SetCursorScreenPos(new System.Numerics.Vector2(nodeMin.X + 8f, nodeMin.Y + 28f));
+            ImGui.SetNextItemWidth(206f);
+            DrawModGraphSourcePreview(sourceKind, sourceId);
+
+            var output = new System.Numerics.Vector2(nodeMax.X - 10f, nodeMin.Y + (86f * 0.5f));
             drawList.AddCircleFilled(output, 6f, ImGui.GetColorU32(new System.Numerics.Vector4(0.72f, 0.42f, 1f, 1f)));
             sourcePorts[(sourceKind, sourceId)] = output;
 
@@ -381,16 +493,118 @@ public partial class MinimalGameWindow
                 _modGraphLinkStart = (sourceKind, sourceId);
             }
 
-            y += 32f;
+            y += 92f;
             ImGui.PopID();
         }
+    }
+
+    private void DrawModGraphSourcePreview(ModGraphSourceKind sourceKind, int sourceId)
+    {
+        if (sourceKind == ModGraphSourceKind.Lfo)
+        {
+            var lfo = _lfoEngine.Lfos.FirstOrDefault(x => x.Id == sourceId);
+            if (lfo is null)
+            {
+                ImGui.TextDisabled("No source");
+                return;
+            }
+
+            const int samples = 48;
+            var values = new float[samples];
+            var phaseOffset = lfo.CurrentPhase;
+            for (var i = 0; i < samples; i++)
+            {
+                var phase = (i / (float)(samples - 1)) + phaseOffset;
+                values[i] = lfo.SampleWave(phase);
+            }
+
+            ImGui.PlotLines("##lfo_preview", ref values[0], values.Length, 0, string.Empty, -1f, 1f, new System.Numerics.Vector2(206f, 44f));
+            ImGui.TextDisabled($"Out {lfo.Output:F2}");
+            return;
+        }
+
+        if (sourceKind == ModGraphSourceKind.Fft)
+        {
+            var fft = _fftSources.FirstOrDefault(x => x.Id == sourceId);
+            if (fft is null || fft.SmoothedBins.Length == 0)
+            {
+                ImGui.TextDisabled("No bins");
+                return;
+            }
+
+            ImGui.PlotHistogram("##fft_preview", ref fft.SmoothedBins[0], fft.SmoothedBins.Length, 0, string.Empty, 0f, 1f, new System.Numerics.Vector2(206f, 44f));
+            ImGui.TextDisabled($"Bins {fft.BinCount}");
+        }
+    }
+
+    private bool TrySelectModGraphLinkAtMouse(
+        System.Numerics.Vector2 mousePos,
+        IReadOnlyList<(bool IsProcessorInput, int ProcessorId, string NodeKey, int SocketId, System.Numerics.Vector2 Start, System.Numerics.Vector2 C1, System.Numerics.Vector2 C2, System.Numerics.Vector2 End)> links)
+    {
+        if (!TryFindModGraphLinkAtMouse(mousePos, links, out var best))
+        {
+            return false;
+        }
+
+        if (best.IsProcessorInput)
+        {
+            return false;
+        }
+
+        _modGraphInspectorNodeKey = best.NodeKey;
+        _modGraphInspectorSocketId = best.SocketId;
+        return true;
     }
 
     private bool TryDisconnectModGraphLinkAtMouse(
         System.Numerics.Vector2 mousePos,
         IReadOnlyList<(bool IsProcessorInput, int ProcessorId, string NodeKey, int SocketId, System.Numerics.Vector2 Start, System.Numerics.Vector2 C1, System.Numerics.Vector2 C2, System.Numerics.Vector2 End)> links)
     {
-        (bool IsProcessorInput, int ProcessorId, string NodeKey, int SocketId)? best = null;
+        if (!TryFindModGraphLinkAtMouse(mousePos, links, out var best))
+        {
+            return false;
+        }
+
+        if (best.IsProcessorInput)
+        {
+            if (!_modGraphProcessors.TryGetValue(best.ProcessorId, out var processor))
+            {
+                return false;
+            }
+
+            var input = processor.Inputs.FirstOrDefault(x => x.Id == best.SocketId);
+            if (input is null)
+            {
+                return false;
+            }
+
+            input.SourceKind = null;
+            input.SourceId = null;
+            return true;
+        }
+
+        if (!_modGraphTargets.TryGetValue(best.NodeKey, out var node))
+        {
+            return false;
+        }
+
+        var socket = node.Sockets.FirstOrDefault(x => x.Id == best.SocketId);
+        if (socket is null)
+        {
+            return false;
+        }
+
+        DisconnectModGraphTargetSocket(node, socket);
+        return true;
+    }
+
+    private static bool TryFindModGraphLinkAtMouse(
+        System.Numerics.Vector2 mousePos,
+        IReadOnlyList<(bool IsProcessorInput, int ProcessorId, string NodeKey, int SocketId, System.Numerics.Vector2 Start, System.Numerics.Vector2 C1, System.Numerics.Vector2 C2, System.Numerics.Vector2 End)> links,
+        out (bool IsProcessorInput, int ProcessorId, string NodeKey, int SocketId) best)
+    {
+        best = default;
+        var found = false;
         var bestDistance = 12f;
 
         foreach (var link in links)
@@ -403,45 +617,32 @@ public partial class MinimalGameWindow
 
             bestDistance = distance;
             best = (link.IsProcessorInput, link.ProcessorId, link.NodeKey, link.SocketId);
+            found = true;
         }
 
-        if (!best.HasValue)
-        {
-            return false;
-        }
+        return found;
+    }
 
-        if (best.Value.IsProcessorInput)
-        {
-            if (!_modGraphProcessors.TryGetValue(best.Value.ProcessorId, out var processor))
-            {
-                return false;
-            }
-
-            var input = processor.Inputs.FirstOrDefault(x => x.Id == best.Value.SocketId);
-            if (input is null)
-            {
-                return false;
-            }
-
-            input.SourceKind = null;
-            input.SourceId = null;
-            return true;
-        }
-
-        if (!_modGraphTargets.TryGetValue(best.Value.NodeKey, out var node))
-        {
-            return false;
-        }
-
-        var socket = node.Sockets.FirstOrDefault(x => x.Id == best.Value.SocketId);
-        if (socket is null)
-        {
-            return false;
-        }
-
+    private void DisconnectModGraphTargetSocket(ModGraphTargetNode node, ModGraphSocket socket)
+    {
         socket.SourceKind = null;
         socket.SourceId = null;
-        return true;
+
+        if (!node.Sockets.Any(x => x.IsConnected))
+        {
+            node.Sockets.Clear();
+            var resetSocket = NewModGraphSocket();
+            node.Sockets.Add(resetSocket);
+
+            if (string.Equals(_modGraphInspectorNodeKey, node.Key, StringComparison.Ordinal))
+            {
+                _modGraphInspectorSocketId = resetSocket.Id;
+            }
+
+            return;
+        }
+
+        EnsureSocketLayout(node);
     }
 
     private static float ModGraphDistancePointToBezierApprox(
@@ -505,23 +706,10 @@ public partial class MinimalGameWindow
 
     private void DrawModGraphInspector()
     {
-        if (!_modGraphInspectorSocketId.HasValue || string.IsNullOrWhiteSpace(_modGraphInspectorNodeKey))
+        var targetSocketSelected = _modGraphInspectorSocketId.HasValue && !string.IsNullOrWhiteSpace(_modGraphInspectorNodeKey);
+        var processorInputSelected = _modGraphInspectorProcessorId.HasValue && _modGraphInspectorProcessorInputSocketId.HasValue;
+        if (!targetSocketSelected && !processorInputSelected)
         {
-            return;
-        }
-
-        if (!_modGraphTargets.TryGetValue(_modGraphInspectorNodeKey, out var node))
-        {
-            _modGraphInspectorSocketId = null;
-            _modGraphInspectorNodeKey = null;
-            return;
-        }
-
-        var socket = node.Sockets.FirstOrDefault(x => x.Id == _modGraphInspectorSocketId.Value);
-        if (socket is null)
-        {
-            _modGraphInspectorSocketId = null;
-            _modGraphInspectorNodeKey = null;
             return;
         }
 
@@ -533,102 +721,90 @@ public partial class MinimalGameWindow
             return;
         }
 
-        ImGui.Text(node.Label);
-        var selectedParamIndex = socket.Parameter is null ? -1 : node.Parameters.FindIndex(x => ReferenceEquals(x, socket.Parameter));
-        var currentLabel = selectedParamIndex >= 0
-            ? ParameterUiHelpers.GetModMatrixParameterLabel(node.Parameters[selectedParamIndex])
-            : "Select parameter";
-
-        if (ImGui.BeginCombo("Parameter", currentLabel))
+        if (targetSocketSelected)
         {
-            for (var i = 0; i < node.Parameters.Count; i++)
+            if (!_modGraphTargets.TryGetValue(_modGraphInspectorNodeKey!, out var node))
             {
-                ImGui.PushID(i);
-                var p = node.Parameters[i];
-                var selected = i == selectedParamIndex;
-                var label = ParameterUiHelpers.GetModMatrixParameterLabel(p);
-                if (ImGui.Selectable(label, selected))
+                _modGraphInspectorSocketId = null;
+                _modGraphInspectorNodeKey = null;
+                ImGui.End();
+                return;
+            }
+
+            var socket = node.Sockets.FirstOrDefault(x => x.Id == _modGraphInspectorSocketId!.Value);
+            if (socket is null)
+            {
+                _modGraphInspectorSocketId = null;
+                _modGraphInspectorNodeKey = null;
+                ImGui.End();
+                return;
+            }
+
+            ImGui.Text(node.Label);
+            var selectedParamIndex = socket.Parameter is null ? -1 : node.Parameters.FindIndex(x => ReferenceEquals(x, socket.Parameter));
+            var currentLabel = selectedParamIndex >= 0
+                ? ParameterUiHelpers.GetModMatrixParameterLabel(node.Parameters[selectedParamIndex])
+                : "Select parameter";
+
+            if (ImGui.BeginCombo("Parameter", currentLabel))
+            {
+                for (var i = 0; i < node.Parameters.Count; i++)
                 {
-                    socket.Parameter = p;
-                    selectedParamIndex = i;
-                }
-
-                if (selected)
-                {
-                    ImGui.SetItemDefaultFocus();
-                }
-
-                ImGui.PopID();
-            }
-
-            ImGui.EndCombo();
-        }
-
-        if (socket.SourceKind == ModGraphSourceKind.Lfo)
-        {
-            var scale = socket.Lfo.Scale;
-            if (ImGui.SliderFloat("Scale", ref scale, 0f, 2f, "%.2f"))
-            {
-                socket.Lfo.Scale = scale;
-            }
-
-            var offset = socket.Lfo.Offset;
-            if (ImGui.SliderFloat("Offset", ref offset, -1f, 1f, "%.2f"))
-            {
-                socket.Lfo.Offset = offset;
-            }
-        }
-        else if (socket.SourceKind == ModGraphSourceKind.Fft)
-        {
-            var fft = socket.SourceId.HasValue ? _fftSources.FirstOrDefault(x => x.Id == socket.SourceId.Value) : null;
-            var maxBin = Math.Max(1, fft?.BinCount ?? 1);
-
-            var bin = Math.Clamp(socket.Fft.AudioBinIndex, 0, maxBin - 1);
-            if (ImGui.SliderInt("Bin", ref bin, 0, maxBin - 1, "Bin %d"))
-            {
-                socket.Fft.AudioBinIndex = bin;
-            }
-
-            var scale = socket.Fft.Scale;
-            if (ImGui.SliderFloat("Scale", ref scale, 0f, 2f, "%.2f"))
-            {
-                socket.Fft.Scale = scale;
-            }
-
-            var offset = socket.Fft.Offset;
-            if (ImGui.SliderFloat("Offset", ref offset, -1f, 1f, "%.2f"))
-            {
-                socket.Fft.Offset = offset;
-            }
-        }
-
-        if (socket.Parameter is not null)
-        {
-            var interactionMode = _lfoFftInteractionModes.GetValueOrDefault(socket.Parameter, ModulationInteractionMode.Add);
-            if (ImGui.BeginCombo("LFO↔FFT", interactionMode.ToString()))
-            {
-                foreach (ModulationInteractionMode candidate in Enum.GetValues<ModulationInteractionMode>())
-                {
-                    var selected = interactionMode == candidate;
-                    if (ImGui.Selectable(candidate.ToString(), selected))
+                    ImGui.PushID(i);
+                    var p = node.Parameters[i];
+                    var selected = i == selectedParamIndex;
+                    var label = ParameterUiHelpers.GetModMatrixParameterLabel(p);
+                    if (ImGui.Selectable(label, selected))
                     {
-                        _lfoFftInteractionModes[socket.Parameter] = candidate;
+                        socket.Parameter = p;
+                        selectedParamIndex = i;
                     }
 
                     if (selected)
                     {
                         ImGui.SetItemDefaultFocus();
                     }
+
+                    ImGui.PopID();
                 }
 
                 ImGui.EndCombo();
             }
-        }
 
-        if (ImGui.Button("Disconnect"))
+            DrawFftBinSelector(socket);
+
+            if (ImGui.Button("Disconnect"))
+            {
+                DisconnectModGraphTargetSocket(node, socket);
+            }
+        }
+        else
         {
-            socket.SourceId = null;
-            socket.SourceKind = null;
+            if (!_modGraphProcessors.TryGetValue(_modGraphInspectorProcessorId!.Value, out var processor))
+            {
+                _modGraphInspectorProcessorId = null;
+                _modGraphInspectorProcessorInputSocketId = null;
+                ImGui.End();
+                return;
+            }
+
+            var socket = processor.Inputs.FirstOrDefault(x => x.Id == _modGraphInspectorProcessorInputSocketId!.Value);
+            if (socket is null)
+            {
+                _modGraphInspectorProcessorId = null;
+                _modGraphInspectorProcessorInputSocketId = null;
+                ImGui.End();
+                return;
+            }
+
+            ImGui.Text($"{processor.Kind} [{processor.Id}] - Input");
+            DrawFftBinSelector(socket);
+
+            if (ImGui.Button("Disconnect"))
+            {
+                socket.SourceKind = null;
+                socket.SourceId = null;
+            }
         }
 
         ImGui.SameLine();
@@ -636,9 +812,28 @@ public partial class MinimalGameWindow
         {
             _modGraphInspectorSocketId = null;
             _modGraphInspectorNodeKey = null;
+            _modGraphInspectorProcessorId = null;
+            _modGraphInspectorProcessorInputSocketId = null;
         }
 
         ImGui.End();
+    }
+
+    private void DrawFftBinSelector(ModGraphSocket socket)
+    {
+        if (socket.SourceKind != ModGraphSourceKind.Fft)
+        {
+            return;
+        }
+
+        var fft = socket.SourceId.HasValue ? _fftSources.FirstOrDefault(x => x.Id == socket.SourceId.Value) : null;
+        var maxBin = Math.Max(1, fft?.BinCount ?? 1);
+
+        var bin = Math.Clamp(socket.Fft.AudioBinIndex, 0, maxBin - 1);
+        if (ImGui.SliderInt("Bin", ref bin, 0, maxBin - 1, "Bin %d"))
+        {
+            socket.Fft.AudioBinIndex = bin;
+        }
     }
 
     private void EnsureModGraphTargets(VisualPipeline visualPipeline)
@@ -753,6 +948,8 @@ public partial class MinimalGameWindow
                 break;
             case ModGraphProcessorKind.Invert:
             case ModGraphProcessorKind.Absolute:
+            case ModGraphProcessorKind.Statistic:
+            case ModGraphProcessorKind.Normalize:
                 if (node.Inputs.Count == 0)
                 {
                     node.Inputs.Add(NewModGraphSocket());
@@ -794,13 +991,30 @@ public partial class MinimalGameWindow
 
         foreach (var target in _modGraphTargets.Values)
         {
+            var changed = false;
             foreach (var socket in target.Sockets)
             {
                 if (socket.SourceKind == ModGraphSourceKind.Processor && socket.SourceId == processorId)
                 {
                     socket.SourceKind = null;
                     socket.SourceId = null;
+                    changed = true;
                 }
+            }
+
+            if (changed && !target.Sockets.Any(x => x.IsConnected))
+            {
+                target.Sockets.Clear();
+                var resetSocket = NewModGraphSocket();
+                target.Sockets.Add(resetSocket);
+                if (string.Equals(_modGraphInspectorNodeKey, target.Key, StringComparison.Ordinal))
+                {
+                    _modGraphInspectorSocketId = resetSocket.Id;
+                }
+            }
+            else if (changed)
+            {
+                EnsureSocketLayout(target);
             }
         }
 
@@ -815,6 +1029,27 @@ public partial class MinimalGameWindow
                 }
             }
         }
+    }
+
+    private bool IsModGraphProcessorOutputConnected(int processorId)
+    {
+        foreach (var target in _modGraphTargets.Values)
+        {
+            if (target.Sockets.Any(x => x.SourceKind == ModGraphSourceKind.Processor && x.SourceId == processorId))
+            {
+                return true;
+            }
+        }
+
+        foreach (var processor in _modGraphProcessors.Values)
+        {
+            if (processor.Inputs.Any(x => x.SourceKind == ModGraphSourceKind.Processor && x.SourceId == processorId))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void SanitizeModGraphProcessors()
@@ -855,7 +1090,6 @@ public partial class MinimalGameWindow
         return new ModGraphSocket
         {
             Id = _nextModGraphSocketId++,
-            Lfo = new LfoModulation(),
             Fft = new AudioModulation()
         };
     }
@@ -887,19 +1121,13 @@ public partial class MinimalGameWindow
 
                 if (socket.SourceKind == ModGraphSourceKind.Lfo)
                 {
-                    _modulationMatrix[(socket.Parameter, socket.SourceId.Value)] = new LfoModulation
-                    {
-                        Scale = socket.Lfo.Scale,
-                        Offset = socket.Lfo.Offset
-                    };
+                    _modulationMatrix[(socket.Parameter, socket.SourceId.Value)] = new LfoModulation();
                 }
                 else if (socket.SourceKind == ModGraphSourceKind.Fft)
                 {
                     _audioModulationMatrix[(socket.Parameter, socket.SourceId.Value)] = new AudioModulation
                     {
-                        AudioBinIndex = socket.Fft.AudioBinIndex,
-                        Scale = socket.Fft.Scale,
-                        Offset = socket.Fft.Offset
+                        AudioBinIndex = socket.Fft.AudioBinIndex
                     };
                 }
             }
@@ -939,8 +1167,6 @@ public partial class MinimalGameWindow
             socket.Parameter = parameter;
             socket.SourceKind = ModGraphSourceKind.Lfo;
             socket.SourceId = lfoId;
-            socket.Lfo.Scale = lfoMod.Scale;
-            socket.Lfo.Offset = lfoMod.Offset;
             node.Sockets.Insert(node.Sockets.Count - 1, socket);
         }
 
@@ -956,8 +1182,6 @@ public partial class MinimalGameWindow
             socket.SourceKind = ModGraphSourceKind.Fft;
             socket.SourceId = fftId;
             socket.Fft.AudioBinIndex = fftMod.AudioBinIndex;
-            socket.Fft.Scale = fftMod.Scale;
-            socket.Fft.Offset = fftMod.Offset;
             node.Sockets.Insert(node.Sockets.Count - 1, socket);
         }
 
@@ -1007,11 +1231,7 @@ public partial class MinimalGameWindow
         {
             SourceKind = socket.SourceKind.HasValue ? ToPresetSourceKind(socket.SourceKind.Value) : string.Empty,
             SourceId = socket.SourceId ?? 0,
-            LfoScale = socket.Lfo.Scale,
-            LfoOffset = socket.Lfo.Offset,
-            FftBinIndex = socket.Fft.AudioBinIndex,
-            FftScale = socket.Fft.Scale,
-            FftOffset = socket.Fft.Offset
+            FftBinIndex = socket.Fft.AudioBinIndex
         };
     }
 
@@ -1020,11 +1240,7 @@ public partial class MinimalGameWindow
         socket.SourceKind = null;
         socket.SourceId = null;
 
-        socket.Lfo.Scale = link.LfoScale;
-        socket.Lfo.Offset = link.LfoOffset;
         socket.Fft.AudioBinIndex = Math.Max(0, link.FftBinIndex);
-        socket.Fft.Scale = link.FftScale;
-        socket.Fft.Offset = link.FftOffset;
 
         if (!TryParsePresetSourceKind(link.SourceKind, out var sourceKind))
         {
@@ -1106,7 +1322,9 @@ public partial class MinimalGameWindow
                 Kind = ToPresetProcessorKind(processor.Kind),
                 X = processor.Position.X,
                 Y = processor.Position.Y,
-                ConstantValue = processor.ConstantValue
+                ConstantValue = processor.ConstantValue,
+                NormalizeOutputMin = processor.NormalizeOutputMin,
+                NormalizeOutputMax = processor.NormalizeOutputMax
             };
 
             for (var i = 0; i < processor.Inputs.Count; i++)
@@ -1159,6 +1377,8 @@ public partial class MinimalGameWindow
                 Kind = kind,
                 Position = new System.Numerics.Vector2(processorDto.X, processorDto.Y),
                 ConstantValue = processorDto.ConstantValue,
+                NormalizeOutputMin = processorDto.NormalizeOutputMin,
+                NormalizeOutputMax = processorDto.NormalizeOutputMax,
                 Inputs = []
             };
 
@@ -1256,9 +1476,9 @@ public partial class MinimalGameWindow
         return socket.SourceKind.Value switch
         {
             ModGraphSourceKind.Lfo => _lfoEngine.TryGetOutput(socket.SourceId.Value, out var lfoValue)
-                ? (lfoValue * socket.Lfo.Scale) + socket.Lfo.Offset
+                ? lfoValue
                 : 0f,
-            ModGraphSourceKind.Fft => (GetAudioBinValue(socket.SourceId.Value, socket.Fft.AudioBinIndex) * socket.Fft.Scale) + socket.Fft.Offset,
+            ModGraphSourceKind.Fft => GetAudioBinValue(socket.SourceId.Value, socket.Fft.AudioBinIndex),
             ModGraphSourceKind.Processor => EvaluateModGraphProcessorOutput(socket.SourceId.Value, evaluatingProcessors),
             _ => 0f
         };
@@ -1320,6 +1540,53 @@ public partial class MinimalGameWindow
                     result += EvaluateModGraphSignal(input, evaluatingProcessors);
                 }
 
+                break;
+            }
+            case ModGraphProcessorKind.Statistic:
+            {
+                var input = processor.Inputs.FirstOrDefault(x => x.IsConnected);
+                if (input is null)
+                {
+                    result = 0f;
+                    break;
+                }
+
+                result = EvaluateModGraphSignal(input, evaluatingProcessors);
+                processor.StatisticCurrent = result;
+                processor.StatisticMin = float.IsPositiveInfinity(processor.StatisticMin)
+                    ? result
+                    : MathF.Min(processor.StatisticMin, result);
+                processor.StatisticMax = float.IsNegativeInfinity(processor.StatisticMax)
+                    ? result
+                    : MathF.Max(processor.StatisticMax, result);
+
+                if (Math.Abs(_elapsedTime - processor.StatisticLastSampleTime) > 1e-6)
+                {
+                    processor.StatisticLastSampleTime = _elapsedTime;
+                    processor.StatisticHistory.Add(result);
+                    const int maxHistorySamples = 120;
+                    if (processor.StatisticHistory.Count > maxHistorySamples)
+                    {
+                        processor.StatisticHistory.RemoveAt(0);
+                    }
+                }
+
+                break;
+            }
+            case ModGraphProcessorKind.Normalize:
+            {
+                var input = processor.Inputs.FirstOrDefault(x => x.IsConnected);
+                if (input is null)
+                {
+                    result = 0f;
+                    break;
+                }
+
+                var raw = EvaluateModGraphSignal(input, evaluatingProcessors);
+                var normalized = Math.Clamp((raw + 1f) * 0.5f, 0f, 1f);
+                var outMin = processor.NormalizeOutputMin;
+                var outMax = processor.NormalizeOutputMax;
+                result = outMin + ((outMax - outMin) * normalized);
                 break;
             }
             default:

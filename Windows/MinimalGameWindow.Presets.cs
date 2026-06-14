@@ -140,13 +140,10 @@ public partial class MinimalGameWindow
         for (var i = 0; i < visualPipeline.Parameters.Count; i++)
         {
             var parameter = visualPipeline.Parameters[i];
-            var hasMode = _lfoFftInteractionModes.TryGetValue(parameter, out var interactionMode);
-
             var paramState = new ParameterModStateDto
             {
                 ParameterIndex = i,
-                ParameterName = parameter.Name,
-                InteractionMode = hasMode ? interactionMode : ModulationInteractionMode.Add
+                ParameterName = parameter.Name
             };
 
             foreach (var lfo in _lfoEngine.Lfos)
@@ -156,9 +153,7 @@ public partial class MinimalGameWindow
                 {
                     paramState.LfoAssignments.Add(new LfoAssignmentDto
                     {
-                        SourceId = lfo.Id,
-                        Scale = modulation.Scale,
-                        Offset = modulation.Offset
+                        SourceId = lfo.Id
                     });
                 }
             }
@@ -171,14 +166,12 @@ public partial class MinimalGameWindow
                     paramState.FftAssignments.Add(new FftAssignmentDto
                     {
                         SourceId = fft.Id,
-                        BinIndex = audioMod.AudioBinIndex,
-                        Scale = audioMod.Scale,
-                        Offset = audioMod.Offset
+                        BinIndex = audioMod.AudioBinIndex
                     });
                 }
             }
 
-            if (hasMode || paramState.LfoAssignments.Count > 0 || paramState.FftAssignments.Count > 0)
+            if (paramState.LfoAssignments.Count > 0 || paramState.FftAssignments.Count > 0)
             {
                 entry.ParameterModulations.Add(paramState);
             }
@@ -232,7 +225,6 @@ public partial class MinimalGameWindow
 
         _modulationMatrix.Clear();
         _audioModulationMatrix.Clear();
-        _lfoFftInteractionModes.Clear();
 
         var parameters = visualPipeline.Parameters;
         foreach (var mod in preset.ParameterModulations)
@@ -243,8 +235,6 @@ public partial class MinimalGameWindow
                 continue;
             }
 
-            _lfoFftInteractionModes[parameter] = mod.InteractionMode;
-
             foreach (var lfoAssignment in mod.LfoAssignments)
             {
                 if (!lfoIdMap.TryGetValue(lfoAssignment.SourceId, out var mappedLfoId))
@@ -252,11 +242,7 @@ public partial class MinimalGameWindow
                     continue;
                 }
 
-                _modulationMatrix[(parameter, mappedLfoId)] = new LfoModulation
-                {
-                    Scale = lfoAssignment.Scale,
-                    Offset = lfoAssignment.Offset
-                };
+                _modulationMatrix[(parameter, mappedLfoId)] = new LfoModulation();
             }
 
             foreach (var fftAssignment in mod.FftAssignments)
@@ -268,9 +254,7 @@ public partial class MinimalGameWindow
 
                 _audioModulationMatrix[(parameter, mappedFftId)] = new AudioModulation
                 {
-                    AudioBinIndex = Math.Max(0, fftAssignment.BinIndex),
-                    Scale = fftAssignment.Scale,
-                    Offset = fftAssignment.Offset
+                    AudioBinIndex = Math.Max(0, fftAssignment.BinIndex)
                 };
             }
         }

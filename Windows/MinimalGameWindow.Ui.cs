@@ -538,7 +538,7 @@ public partial class MinimalGameWindow
         ImGui.TextDisabled("Assigned source output multiplies the base parameter value.");
 
         var sections = ParameterUiHelpers.BuildParameterSections(visual, ParameterUiHelpers.GetModMatrixSectionName);
-        var columns = 2 + _fftSources.Count + _lfoEngine.Lfos.Count;
+        var columns = 1 + _fftSources.Count + _lfoEngine.Lfos.Count;
         var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollX;
 
         foreach (var (sectionName, sectionIndices) in sections)
@@ -551,7 +551,6 @@ public partial class MinimalGameWindow
                 if (ImGui.BeginTable("LfoModMatrix", columns, flags, new System.Numerics.Vector2(1100, 320)))
                 {
                     ImGui.TableSetupColumn("Parameter", ImGuiTableColumnFlags.WidthFixed, 260);
-                    ImGui.TableSetupColumn("LFO↔FFT", ImGuiTableColumnFlags.WidthFixed, 120);
 
                     foreach (var fft in _fftSources)
                     {
@@ -585,36 +584,11 @@ public partial class MinimalGameWindow
         ImGui.TableSetColumnIndex(0);
         ImGui.Text(ParameterUiHelpers.GetModMatrixParameterLabel(parameter));
 
-        ImGui.TableSetColumnIndex(1);
-        ImGui.PushID($"mode_{row}");
-        var interactionMode = _lfoFftInteractionModes.GetValueOrDefault(parameter, ModulationInteractionMode.Add);
-        if (ImGui.BeginCombo("##interaction", interactionMode.ToString()))
-        {
-            foreach (ModulationInteractionMode candidate in Enum.GetValues<ModulationInteractionMode>())
-            {
-                var isSelected = candidate == interactionMode;
-                if (ImGui.Selectable(candidate.ToString(), isSelected))
-                {
-                    _lfoFftInteractionModes[parameter] = candidate;
-                    interactionMode = candidate;
-                }
-
-                if (isSelected)
-                {
-                    ImGui.SetItemDefaultFocus();
-                }
-            }
-
-            ImGui.EndCombo();
-        }
-
-        ImGui.PopID();
-
         for (var fftCol = 0; fftCol < _fftSources.Count; fftCol++)
         {
             var fft = _fftSources[fftCol];
             var audioKey = (parameter, fft.Id);
-            ImGui.TableSetColumnIndex(fftCol + 2);
+            ImGui.TableSetColumnIndex(fftCol + 1);
             ImGui.PushID($"fft_cell_{row}_{fft.Id}");
 
             var fftAssigned = _audioModulationMatrix.TryGetValue(audioKey, out var audioMod);
@@ -660,23 +634,8 @@ public partial class MinimalGameWindow
                     ImGui.EndCombo();
                 }
 
-                var audioScale = audioMod.Scale;
-                ImGui.SetNextItemWidth(120);
-                if (ImGui.SliderFloat("##fftScale", ref audioScale, 0f, 2f, "Scale %.2f"))
-                {
-                    audioMod.Scale = audioScale;
-                }
-
-                var audioOffset = audioMod.Offset;
-                ImGui.SetNextItemWidth(120);
-                if (ImGui.SliderFloat("##fftOffset", ref audioOffset, -1f, 1f, "Offset %.2f"))
-                {
-                    audioMod.Offset = audioOffset;
-                }
-
                 var binValue = GetAudioBinValue(fft.Id, audioMod.AudioBinIndex);
-                var binModulated = (binValue * audioMod.Scale) + audioMod.Offset;
-                ImGui.TextDisabled($"BIN: {binValue:F2} → {binModulated:F2}");
+                ImGui.TextDisabled($"BIN: {binValue:F2}");
             }
 
             ImGui.PopID();
@@ -687,7 +646,7 @@ public partial class MinimalGameWindow
             var lfo = _lfoEngine.Lfos[lfoCol];
             var key = (parameter, lfo.Id);
 
-            ImGui.TableSetColumnIndex(lfoCol + 2 + _fftSources.Count);
+            ImGui.TableSetColumnIndex(lfoCol + 1 + _fftSources.Count);
             ImGui.PushID($"cell_{row}_{lfo.Id}");
 
             var assigned = _modulationMatrix.TryGetValue(key, out var modulation);
@@ -708,23 +667,8 @@ public partial class MinimalGameWindow
                 modulation ??= new LfoModulation();
                 _modulationMatrix[key] = modulation;
 
-                var scale = modulation.Scale;
-                ImGui.SetNextItemWidth(120);
-                if (ImGui.SliderFloat("##scale", ref scale, 0f, 2f, "Scale %.2f"))
-                {
-                    modulation.Scale = scale;
-                }
-
-                var offset = modulation.Offset;
-                ImGui.SetNextItemWidth(120);
-                if (ImGui.SliderFloat("##offset", ref offset, -1f, 1f, "Offset %.2f"))
-                {
-                    modulation.Offset = offset;
-                }
-
                 var lfoValue = lfo.Output;
-                var lfoModulated = (lfoValue * modulation.Scale) + modulation.Offset;
-                ImGui.TextDisabled($"LFO: {lfoValue:F2} → {lfoModulated:F2}");
+                ImGui.TextDisabled($"LFO: {lfoValue:F2}");
             }
 
             ImGui.PopID();

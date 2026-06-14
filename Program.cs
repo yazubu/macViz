@@ -29,8 +29,8 @@ public partial class MinimalGameWindow : GameWindow
 
     public const int DefaultOutputWidth = 1280;
     public const int DefaultOutputHeight = 720;
-    public const int DefaultControlWidth = 1200;
-    public const int DefaultControlHeight = 900;
+    public const int DefaultControlWidth = 1600;
+    public const int DefaultControlHeight = 1200;
     public const string OutputWindowTitle = "macViz - Output";
     public const string ControlWindowTitle = "macViz - Controls";
 
@@ -38,7 +38,6 @@ public partial class MinimalGameWindow : GameWindow
     private int _selectedParameterIndex;
     private readonly Dictionary<(IParameter Parameter, int LfoId), LfoModulation> _modulationMatrix = new();
     private readonly Dictionary<(IParameter Parameter, int FftId), AudioModulation> _audioModulationMatrix = new();
-    private readonly Dictionary<IParameter, ModulationInteractionMode> _lfoFftInteractionModes = new();
     private readonly List<FftModSource> _fftSources = [];
     private int _nextFftSourceId = 1;
 
