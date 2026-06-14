@@ -866,7 +866,7 @@
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
               "Static Images / Algorithm (0 Order,1 Order Inv,2 Random,3 Random EX)": 2,
-              "Static Images / Trigger": 0.387
+              "Static Images / Trigger": 0.559
             },
             "SourceImagePaths": [
               "/Users/yazzi/Documents/Images/bret-kavanaugh-_af0_qAh4K4-unsplash.jpg",
@@ -908,14 +908,14 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 14,
+            "NodeId": 9,
             "NodeKind": "Stage",
             "StageTypeId": "effect.scale",
             "InputAId": 6,
             "InputBId": null,
             "InputExtraIds": [],
-            "PositionX": 362,
-            "PositionY": 385,
+            "PositionX": 305,
+            "PositionY": 109,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
@@ -926,13 +926,13 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 9,
+            "NodeId": 10,
             "NodeKind": "Stage",
             "StageTypeId": "effect.signalSwitch",
             "InputAId": 5,
             "InputBId": null,
             "InputExtraIds": [
-              14,
+              9,
               7,
               8,
               null,
@@ -940,25 +940,25 @@
               null,
               null
             ],
-            "PositionX": 612,
-            "PositionY": 114,
+            "PositionX": 606,
+            "PositionY": -4,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
-              "Signal Switch / Algorithm (0 Order,1 Order Inv,2 Random,3 Random EX)": 0,
-              "Signal Switch / Trigger": 0.279
+              "Signal Switch / Algorithm (0 Order,1 Order Inv,2 Random,3 Random EX)": 3,
+              "Signal Switch / Trigger": 0.632
             },
             "SourceImagePaths": []
           },
           {
-            "NodeId": 10,
+            "NodeId": 11,
             "NodeKind": "Stage",
             "StageTypeId": "effect.edgeDetect",
-            "InputAId": 9,
+            "InputAId": 10,
             "InputBId": null,
             "InputExtraIds": [],
-            "PositionX": 952,
-            "PositionY": 154,
+            "PositionX": 964,
+            "PositionY": 19,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 1,
@@ -970,14 +970,14 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 11,
+            "NodeId": 12,
             "NodeKind": "Stage",
             "StageTypeId": "effect.posterize",
-            "InputAId": 10,
+            "InputAId": 11,
             "InputBId": null,
             "InputExtraIds": [],
-            "PositionX": 1268,
-            "PositionY": 160,
+            "PositionX": 1299,
+            "PositionY": 37,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
@@ -988,14 +988,14 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 12,
+            "NodeId": 13,
             "NodeKind": "Stage",
             "StageTypeId": "effect.edgeDetect",
-            "InputAId": 11,
+            "InputAId": 12,
             "InputBId": null,
             "InputExtraIds": [],
-            "PositionX": 1317,
-            "PositionY": 426,
+            "PositionX": 921,
+            "PositionY": 257,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 3,
@@ -1007,10 +1007,30 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 13,
+            "NodeId": 15,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.zoomBlur",
+            "InputAId": 13,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 1244,
+            "PositionY": 260,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Zoom Blur Effect / Center X": 0.5,
+              "Zoom Blur Effect / Center Y": 0.5,
+              "Zoom Blur Effect / Strength": 0.35,
+              "Zoom Blur Effect / Samples": 16,
+              "Zoom Blur Effect / Mix": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 14,
             "NodeKind": "Output",
             "StageTypeId": null,
-            "InputAId": 12,
+            "InputAId": 15,
             "InputBId": null,
             "InputExtraIds": [],
             "PositionX": 1633,
@@ -1039,6 +1059,15 @@
           "DutyCycle": 0.5,
           "SyncEnabled": true,
           "SyncSpeedMultiplier": 0.25
+        },
+        {
+          "SourceId": 3,
+          "WaveType": 1,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 0.25
         }
       ],
       "FftSources": [
@@ -1046,7 +1075,7 @@
           "SourceId": 1,
           "BinCount": 16,
           "Smoothing": 0.75,
-          "LogarithmicGrouping": false,
+          "LogarithmicGrouping": true,
           "ExpandVariability": false,
           "VariabilityWindowSeconds": 2
         }
@@ -1063,7 +1092,7 @@
           "FftAssignments": []
         },
         {
-          "ParameterIndex": 16,
+          "ParameterIndex": 21,
           "ParameterName": "Signal Switch / Trigger",
           "LfoAssignments": [
             {
@@ -1071,21 +1100,318 @@
             }
           ],
           "FftAssignments": []
-        },
-        {
-          "ParameterIndex": 36,
-          "ParameterName": "Scale Effect / Scale",
-          "LfoAssignments": [
-            {
-              "SourceId": 2
-            }
-          ],
-          "FftAssignments": []
         }
       ],
-      "ModGraphNodePositions": [],
-      "ModGraphProcessors": [],
-      "ModGraphTargetLinks": []
+      "ModGraphNodePositions": [
+        {
+          "NodeKey": "Stage 1 (Camera Source)",
+          "X": 172,
+          "Y": 31
+        },
+        {
+          "NodeKey": "Stage 10 (Zoom Blur)",
+          "X": -153,
+          "Y": 566
+        },
+        {
+          "NodeKey": "Stage 2 (Static Images)",
+          "X": -418,
+          "Y": 25
+        },
+        {
+          "NodeKey": "Stage 3 (Camera Source)",
+          "X": 164,
+          "Y": 104
+        },
+        {
+          "NodeKey": "Stage 4 (Camera Source)",
+          "X": 174,
+          "Y": 198
+        },
+        {
+          "NodeKey": "Stage 5 (Scale)",
+          "X": 423,
+          "Y": 380
+        },
+        {
+          "NodeKey": "Stage 6 (Signal Switch)",
+          "X": -414,
+          "Y": 119
+        },
+        {
+          "NodeKey": "Stage 7 (Edge Detection)",
+          "X": 0,
+          "Y": 720
+        },
+        {
+          "NodeKey": "Stage 8 (Posterize)",
+          "X": 0,
+          "Y": 840
+        },
+        {
+          "NodeKey": "Stage 9 (Edge Detection)",
+          "X": 0,
+          "Y": 960
+        }
+      ],
+      "ModGraphProcessors": [
+        {
+          "ProcessorId": 1,
+          "Kind": "Constant",
+          "X": 15,
+          "Y": 304,
+          "ConstantValue": 0.55,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": []
+        },
+        {
+          "ProcessorId": 2,
+          "Kind": "Absolute",
+          "X": 5,
+          "Y": 224,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Lfo",
+              "SourceId": 2,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 3,
+          "Kind": "Add",
+          "X": 325,
+          "Y": 222,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Processor",
+              "SourceId": 2,
+              "FftBinIndex": 0
+            },
+            {
+              "SourceKind": "Processor",
+              "SourceId": 1,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 5,
+          "Kind": "Constant",
+          "X": 27,
+          "Y": 408,
+          "ConstantValue": 0.72,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": []
+        },
+        {
+          "ProcessorId": 6,
+          "Kind": "Switch",
+          "X": 396,
+          "Y": 370,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Processor",
+              "SourceId": 5,
+              "FftBinIndex": 0
+            },
+            {
+              "SourceKind": "Processor",
+              "SourceId": 3,
+              "FftBinIndex": 0
+            },
+            {
+              "SourceKind": "",
+              "SourceId": 0,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 7,
+          "Kind": "Statistic",
+          "X": 698,
+          "Y": 335,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Processor",
+              "SourceId": 6,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 9,
+          "Kind": "Constant",
+          "X": -301,
+          "Y": 591,
+          "ConstantValue": -0.19,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": []
+        },
+        {
+          "ProcessorId": 10,
+          "Kind": "Add",
+          "X": 1,
+          "Y": 520,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Fft",
+              "SourceId": 1,
+              "FftBinIndex": 10
+            },
+            {
+              "SourceKind": "Processor",
+              "SourceId": 9,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 11,
+          "Kind": "Statistic",
+          "X": 291,
+          "Y": 733,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Processor",
+              "SourceId": 15,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 12,
+          "Kind": "Invert",
+          "X": -498,
+          "Y": 722,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Lfo",
+              "SourceId": 1,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 13,
+          "Kind": "Constant",
+          "X": -480,
+          "Y": 831,
+          "ConstantValue": -1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": []
+        },
+        {
+          "ProcessorId": 14,
+          "Kind": "Add",
+          "X": -181,
+          "Y": 744,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Processor",
+              "SourceId": 12,
+              "FftBinIndex": 0
+            },
+            {
+              "SourceKind": "Processor",
+              "SourceId": 13,
+              "FftBinIndex": 0
+            }
+          ]
+        },
+        {
+          "ProcessorId": 15,
+          "Kind": "Add",
+          "X": 16,
+          "Y": 644,
+          "ConstantValue": 1,
+          "NormalizeOutputMin": 0,
+          "NormalizeOutputMax": 1,
+          "Inputs": [
+            {
+              "SourceKind": "Processor",
+              "SourceId": 10,
+              "FftBinIndex": 0
+            },
+            {
+              "SourceKind": "Processor",
+              "SourceId": 14,
+              "FftBinIndex": 0
+            }
+          ]
+        }
+      ],
+      "ModGraphTargetLinks": [
+        {
+          "NodeKey": "Stage 10 (Zoom Blur)",
+          "ParameterIndex": 4,
+          "ParameterName": "Zoom Blur Effect / Strength",
+          "Link": {
+            "SourceKind": "Processor",
+            "SourceId": 11,
+            "FftBinIndex": 0
+          }
+        },
+        {
+          "NodeKey": "Stage 2 (Static Images)",
+          "ParameterIndex": 3,
+          "ParameterName": "Static Images / Trigger",
+          "Link": {
+            "SourceKind": "Lfo",
+            "SourceId": 1,
+            "FftBinIndex": 0
+          }
+        },
+        {
+          "NodeKey": "Stage 5 (Scale)",
+          "ParameterIndex": 2,
+          "ParameterName": "Scale Effect / Scale",
+          "Link": {
+            "SourceKind": "Processor",
+            "SourceId": 7,
+            "FftBinIndex": 0
+          }
+        },
+        {
+          "NodeKey": "Stage 6 (Signal Switch)",
+          "ParameterIndex": 3,
+          "ParameterName": "Signal Switch / Trigger",
+          "Link": {
+            "SourceKind": "Lfo",
+            "SourceId": 1,
+            "FftBinIndex": 0
+          }
+        }
+      ]
     },
     {
       "Name": "stats test",

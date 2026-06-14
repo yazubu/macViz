@@ -19,7 +19,8 @@ public partial class MinimalGameWindow
         Constant,
         Add,
         Statistic,
-        Normalize
+        Normalize,
+        Switch
     }
 
     private sealed class ModGraphSocket
@@ -56,6 +57,8 @@ public partial class MinimalGameWindow
         public double StatisticLastSampleTime = double.NegativeInfinity;
         public float NormalizeOutputMin;
         public float NormalizeOutputMax = 1f;
+        public int SwitchState;
+        public float SwitchSelectorValue;
     }
 
     private readonly Dictionary<string, ModGraphTargetNode> _modGraphTargets = [];
@@ -87,6 +90,8 @@ public partial class MinimalGameWindow
         if (ImGui.Button("Add Statistic")) AddModGraphProcessorNode(ModGraphProcessorKind.Statistic);
         ImGui.SameLine();
         if (ImGui.Button("Add Normalize")) AddModGraphProcessorNode(ModGraphProcessorKind.Normalize);
+        ImGui.SameLine();
+        if (ImGui.Button("Add Switch")) AddModGraphProcessorNode(ModGraphProcessorKind.Switch);
 
         ImGui.TextDisabled("Violet links: source/output → input socket. Pan: right/middle drag or Space+left drag. Drag node headers to move. Double-click link to disconnect.");
 
@@ -192,7 +197,8 @@ public partial class MinimalGameWindow
 
             var statisticExtraHeight = processor.Kind == ModGraphProcessorKind.Statistic ? 148f : 0f;
             var normalizeExtraHeight = processor.Kind == ModGraphProcessorKind.Normalize ? 44f : 0f;
-            var height = MathF.Max(62f, 36f + (processor.Inputs.Count * 22f) + statisticExtraHeight + normalizeExtraHeight);
+            var switchExtraHeight = processor.Kind == ModGraphProcessorKind.Switch ? 28f : 0f;
+            var height = MathF.Max(62f, 36f + (processor.Inputs.Count * 22f) + statisticExtraHeight + normalizeExtraHeight + switchExtraHeight);
             var nodeMin = new System.Numerics.Vector2(
                 canvasMin.X + _modGraphCanvasPan.X + processorOrigin.X + processor.Position.X,
                 canvasMin.Y + _modGraphCanvasPan.Y + processorOrigin.Y + processor.Position.Y);
@@ -237,7 +243,8 @@ public partial class MinimalGameWindow
                     var inputPos = new System.Numerics.Vector2(nodeMin.X + 10f, y + 6f);
                     var color = input.IsConnected ? violet : new System.Numerics.Vector4(0.35f, 0.2f, 0.45f, 1f);
                     drawList.AddCircleFilled(inputPos, 5f, ImGui.GetColorU32(color));
-                    drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 22f, y), ImGui.GetColorU32(new System.Numerics.Vector4(0.9f, 0.9f, 0.95f, 1f)), $"In {i + 1}");
+                    var inputLabel = GetModGraphProcessorInputLabel(processor.Kind, i);
+                    drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 22f, y), ImGui.GetColorU32(new System.Numerics.Vector4(0.9f, 0.9f, 0.95f, 1f)), inputLabel);
 
                     ImGui.SetCursorScreenPos(new System.Numerics.Vector2(inputPos.X - 8f, inputPos.Y - 8f));
                     ImGui.InvisibleButton($"proc_in_{input.Id}", new System.Numerics.Vector2(16f, 16f));
@@ -344,6 +351,20 @@ public partial class MinimalGameWindow
                     {
                         processor.NormalizeOutputMax = outMax;
                     }
+                }
+                else if (processor.Kind == ModGraphProcessorKind.Switch)
+                {
+                    var indicatorColor = processor.SwitchState >= 0
+                        ? new System.Numerics.Vector4(0.35f, 0.9f, 0.55f, 1f)
+                        : new System.Numerics.Vector4(0.95f, 0.45f, 0.45f, 1f);
+                    var indicatorText = processor.SwitchState >= 0
+                        ? $">= 0 (Ctrl {processor.SwitchSelectorValue:F2}) → In 2"
+                        : $"< 0 (Ctrl {processor.SwitchSelectorValue:F2}) → In 3";
+
+                    var lineY = nodeMin.Y + 30f + (processor.Inputs.Count * 22f) + 6f;
+                    var dotPos = new System.Numerics.Vector2(nodeMin.X + 14f, lineY + 5f);
+                    drawList.AddCircleFilled(dotPos, 5f, ImGui.GetColorU32(indicatorColor));
+                    drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 24f, lineY), ImGui.GetColorU32(new System.Numerics.Vector4(0.92f, 0.92f, 0.96f, 1f)), indicatorText);
                 }
             }
 
@@ -455,6 +476,22 @@ public partial class MinimalGameWindow
             Parameter<int> intParameter => intParameter.CurrentValue.ToString(),
             _ => "-"
         };
+    }
+
+    private static string GetModGraphProcessorInputLabel(ModGraphProcessorKind kind, int index)
+    {
+        if (kind == ModGraphProcessorKind.Switch)
+        {
+            return index switch
+            {
+                0 => "Ctrl",
+                1 => "In ≥0",
+                2 => "In <0",
+                _ => $"In {index + 1}"
+            };
+        }
+
+        return $"In {index + 1}";
     }
 
     private void DrawModGraphSourceColumn(
@@ -958,6 +995,18 @@ public partial class MinimalGameWindow
                 {
                     node.Inputs.RemoveRange(1, node.Inputs.Count - 1);
                 }
+                break;
+            case ModGraphProcessorKind.Switch:
+                while (node.Inputs.Count < 3)
+                {
+                    node.Inputs.Add(NewModGraphSocket());
+                }
+
+                if (node.Inputs.Count > 3)
+                {
+                    node.Inputs.RemoveRange(3, node.Inputs.Count - 3);
+                }
+
                 break;
             case ModGraphProcessorKind.Multiply:
             case ModGraphProcessorKind.Add:
@@ -1587,6 +1636,25 @@ public partial class MinimalGameWindow
                 var outMin = processor.NormalizeOutputMin;
                 var outMax = processor.NormalizeOutputMax;
                 result = outMin + ((outMax - outMin) * normalized);
+                break;
+            }
+            case ModGraphProcessorKind.Switch:
+            {
+                var control = processor.Inputs.Count > 0 && processor.Inputs[0].IsConnected
+                    ? EvaluateModGraphSignal(processor.Inputs[0], evaluatingProcessors)
+                    : 0f;
+
+                processor.SwitchSelectorValue = control;
+                processor.SwitchState = control >= 0f ? 1 : -1;
+
+                var selectedIndex = control >= 0f ? 1 : 2;
+                if (processor.Inputs.Count <= selectedIndex || !processor.Inputs[selectedIndex].IsConnected)
+                {
+                    result = 0f;
+                    break;
+                }
+
+                result = EvaluateModGraphSignal(processor.Inputs[selectedIndex], evaluatingProcessors);
                 break;
             }
             default:
