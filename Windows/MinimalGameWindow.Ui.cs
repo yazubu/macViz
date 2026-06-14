@@ -167,6 +167,8 @@ public partial class MinimalGameWindow
 
                 if (ImGui.CollapsingHeader("Modulation Graph", ImGuiTreeNodeFlags.DefaultOpen))
                 {
+                    DrawLfoManagerControls();
+                    ImGui.Separator();
                     DrawModulationGraphEditor(visualPipeline);
                 }
             }
@@ -201,10 +203,8 @@ public partial class MinimalGameWindow
         ImGui.End();
     }
 
-    private void DrawLfoManagerWindow()
+    private void DrawLfoManagerControls()
     {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 460), ImGuiCond.FirstUseEver);
-        ImGui.Begin("LFO Manager", ImGuiWindowFlags.AlwaysAutoResize);
         ImGui.PushItemWidth(170);
 
         if (ImGui.Button("Add LFO"))
@@ -229,6 +229,9 @@ public partial class MinimalGameWindow
             ImGui.PushID($"fft_src_mgr_{source.Id}");
             if (ImGui.TreeNode($"FFT Source {source.Id}"))
             {
+                var removeSource = false;
+
+                ImGui.BeginGroup();
                 var bins = source.BinCount;
                 if (ImGui.SliderInt("Bins", ref bins, 1, 64))
                 {
@@ -268,6 +271,46 @@ public partial class MinimalGameWindow
                 }
 
                 if (ImGui.Button("Remove FFT Source"))
+                {
+                    removeSource = true;
+                }
+
+                ImGui.EndGroup();
+
+                ImGui.SameLine();
+
+                ImGui.BeginGroup();
+                var expandLabel = source.ExpandVariability
+                    ? $"On ({source.VariabilityWindowSeconds:F1}s)"
+                    : "Off";
+                var groupingLabel = source.LogarithmicGrouping ? "Log" : "Linear";
+                ImGui.TextDisabled($"Preview | Bins: {source.BinCount} | Grouping: {groupingLabel} | Expand: {expandLabel}");
+
+                ImGui.PlotHistogram(
+                    "##fftVerticalBars",
+                    ref source.SmoothedBins[0],
+                    source.SmoothedBins.Length,
+                    0,
+                    string.Empty,
+                    0f,
+                    1f,
+                    new System.Numerics.Vector2(300f, 140f));
+
+                if (ImGui.IsItemHovered())
+                {
+                    var mouse = ImGui.GetIO().MousePos;
+                    var min = ImGui.GetItemRectMin();
+                    var max = ImGui.GetItemRectMax();
+                    var width = MathF.Max(1f, max.X - min.X);
+                    var t = Math.Clamp((mouse.X - min.X) / width, 0f, 0.9999f);
+                    var bin = Math.Clamp((int)(t * source.SmoothedBins.Length), 0, source.SmoothedBins.Length - 1);
+                    var value = source.SmoothedBins[bin];
+                    ImGui.SetTooltip($"Bin {bin + 1}: {value:F2}");
+                }
+
+                ImGui.EndGroup();
+
+                if (removeSource)
                 {
                     var removeId = source.Id;
                     ImGui.TreePop();
@@ -374,7 +417,6 @@ public partial class MinimalGameWindow
         }
 
         ImGui.PopItemWidth();
-        ImGui.End();
     }
 
     private void DrawParameters(IVisual visual)
@@ -465,7 +507,7 @@ public partial class MinimalGameWindow
 
         if (_fftSources.Count == 0)
         {
-            ImGui.TextDisabled("Add FFT Source in LFO Manager.");
+            ImGui.TextDisabled("Add FFT Source in Modulation Graph.");
             return;
         }
 

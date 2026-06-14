@@ -157,8 +157,6 @@ public partial class MinimalGameWindow : GameWindow
             DrawVisualParametersWindow();
             DrawTempoManagementWindow();
             DrawSettingsWindow();
-            DrawLfoManagerWindow();
-            DrawFftPreviewWindow();
             DrawPipelineGraphWindow();
             DrawPipelinePresetsWindow();
         }
