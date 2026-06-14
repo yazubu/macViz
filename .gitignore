@@ -1,0 +1,45 @@
+# Build results
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+*.userprefs
+*.sln.docstates
+
+# IDE/editor folders
+.vs/
+.vscode/
+.idea/
+
+# Rider/ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!**/packages/build/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated/runtime config
+imgui.ini
+
+# Project-specific
+Images/

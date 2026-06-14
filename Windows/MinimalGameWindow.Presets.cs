@@ -100,6 +100,7 @@ public partial class MinimalGameWindow
     private PipelinePresetEntry CapturePipelinePreset(string presetName, VisualPipeline visualPipeline)
     {
         EnsureModGraphTargets(visualPipeline);
+        SyncPipelineModulationMatricesFromGraph(visualPipeline);
 
         var entry = new PipelinePresetEntry
         {
@@ -134,15 +135,7 @@ public partial class MinimalGameWindow
             });
         }
 
-        foreach (var target in _modGraphTargets.Values.OrderBy(x => x.Key, StringComparer.Ordinal))
-        {
-            entry.ModGraphNodePositions.Add(new ModGraphNodePositionDto
-            {
-                NodeKey = target.Key,
-                X = target.Position.X,
-                Y = target.Position.Y
-            });
-        }
+        CaptureModGraphStateToPreset(entry, visualPipeline);
 
         for (var i = 0; i < visualPipeline.Parameters.Count; i++)
         {
@@ -283,15 +276,24 @@ public partial class MinimalGameWindow
         }
 
         SanitizeAudioBinAssignments();
-        RebuildModulationGraphFromAssignments(visualPipeline);
 
-        if (preset.ModGraphNodePositions.Count > 0)
+        if (preset.ModGraphProcessors.Count > 0 || preset.ModGraphTargetLinks.Count > 0)
         {
-            foreach (var nodePos in preset.ModGraphNodePositions)
+            ApplyModGraphStateFromPreset(preset, visualPipeline, lfoIdMap, fftIdMap);
+            SyncPipelineModulationMatricesFromGraph(visualPipeline);
+        }
+        else
+        {
+            RebuildModulationGraphFromAssignments(visualPipeline);
+
+            if (preset.ModGraphNodePositions.Count > 0)
             {
-                if (_modGraphTargets.TryGetValue(nodePos.NodeKey, out var node))
+                foreach (var nodePos in preset.ModGraphNodePositions)
                 {
-                    node.Position = new System.Numerics.Vector2(nodePos.X, nodePos.Y);
+                    if (_modGraphTargets.TryGetValue(nodePos.NodeKey, out var node))
+                    {
+                        node.Position = new System.Numerics.Vector2(nodePos.X, nodePos.Y);
+                    }
                 }
             }
         }

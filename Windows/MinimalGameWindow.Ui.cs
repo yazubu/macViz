@@ -106,27 +106,6 @@ public partial class MinimalGameWindow
         ImGui.End();
     }
 
-    private void DrawSettingsWindow()
-    {
-        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 250), ImGuiCond.FirstUseEver);
-        ImGui.Begin("Settings", ImGuiWindowFlags.AlwaysAutoResize);
-
-        if (_visuals.Count > 0)
-        {
-            var activeVisual = _visuals[_selectedVisualIndex];
-            if (activeVisual is VisualPipeline)
-            {
-                ImGui.TextDisabled("Camera selection is configured per Camera Source node.");
-            }
-            else
-            {
-                ImGui.TextDisabled("No camera settings for current visual.");
-            }
-        }
-
-        ImGui.End();
-    }
-
     private void DrawModMatrixWindow()
     {
         ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 360), ImGuiCond.FirstUseEver);

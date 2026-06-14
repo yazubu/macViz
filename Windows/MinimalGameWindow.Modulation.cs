@@ -73,6 +73,17 @@ public partial class MinimalGameWindow
                     modulationFactor = fftSum;
                 }
 
+                if (visual is VisualPipeline)
+                {
+                    var processorContribution = GetModGraphProcessorContribution(parameter, out var hasProcessorContribution);
+                    if (hasProcessorContribution)
+                    {
+                        modulationFactor = (hasLfo || hasFft)
+                            ? modulationFactor + processorContribution
+                            : processorContribution;
+                    }
+                }
+
                 parameter.ApplyCombinedModulation(modulationFactor);
             }
         }
