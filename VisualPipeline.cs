@@ -374,6 +374,11 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             mousePos.X >= canvasMin.X && mousePos.X <= canvasMax.X &&
             mousePos.Y >= canvasMin.Y && mousePos.Y <= canvasMax.Y;
 
+        if (canvasHovered && _linkStartNodeId.HasValue && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+        {
+            _linkStartNodeId = null;
+        }
+
         if (canvasHovered && ImGui.IsMouseDragging(ImGuiMouseButton.Right))
         {
             var delta = ImGui.GetIO().MouseDelta;
@@ -407,6 +412,11 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
         DrawCameraVirtualNode(drawList, cameraMin, cameraMax);
         DrawNodeConnections(drawList, nodeRects);
+
+        if (canvasHovered && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && TryRemoveConnectionAtMouse(mousePos, nodeRects))
+        {
+            _linkStartNodeId = null;
+        }
 
         for (var i = 0; i < _nodes.Count; i++)
         {
@@ -468,10 +478,13 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
                 continue;
             }
 
-            DrawConnectionIntoInputPort(drawList, node.InputAId, nodeRects, GetNodeInputPortA(node, targetRect.Min, targetRect.Max), allowCamera: node.Kind != PipelineNodeKind.Mix);
-            if (node.Kind == PipelineNodeKind.Mix)
+            if (!(node.Kind == PipelineNodeKind.Stage && node.Stage is not null && node.Stage.IsSourceStage))
             {
-                DrawConnectionIntoInputPort(drawList, node.InputBId, nodeRects, GetNodeInputPortB(targetRect.Min, targetRect.Max), allowCamera: false);
+                DrawConnectionIntoInputPort(drawList, node.InputAId, nodeRects, GetNodeInputPortA(node, targetRect.Min, targetRect.Max), allowCamera: node.Kind != PipelineNodeKind.Mix);
+                if (node.Kind == PipelineNodeKind.Mix)
+                {
+                    DrawConnectionIntoInputPort(drawList, node.InputBId, nodeRects, GetNodeInputPortB(targetRect.Min, targetRect.Max), allowCamera: false);
+                }
             }
         }
     }
@@ -500,6 +513,142 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         var c1 = new System.Numerics.Vector2(outPort.X + 90f, outPort.Y);
         var c2 = new System.Numerics.Vector2(inputPort.X - 90f, inputPort.Y);
         drawList.AddBezierCubic(outPort, c1, c2, inputPort, ImGui.GetColorU32(new System.Numerics.Vector4(0.9f, 0.9f, 0.9f, 0.9f)), 2f);
+    }
+
+    private bool TryRemoveConnectionAtMouse(System.Numerics.Vector2 mousePos, IReadOnlyDictionary<int, (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> nodeRects)
+    {
+        PipelineNode? bestNode = null;
+        var bestIsSecondInput = false;
+        var bestDistance = 12f;
+
+        foreach (var node in _nodes)
+        {
+            if (!nodeRects.TryGetValue(node.Id, out var targetRect))
+            {
+                continue;
+            }
+
+            if (node.Kind == PipelineNodeKind.Stage && node.Stage is not null && node.Stage.IsSourceStage)
+            {
+                continue;
+            }
+
+            var inputA = GetNodeInputPortA(node, targetRect.Min, targetRect.Max);
+            if (TryGetConnectionDistanceToPoint(node.InputAId, nodeRects, inputA, allowCamera: node.Kind != PipelineNodeKind.Mix, mousePos, out var distanceA) && distanceA < bestDistance)
+            {
+                bestDistance = distanceA;
+                bestNode = node;
+                bestIsSecondInput = false;
+            }
+
+            if (node.Kind == PipelineNodeKind.Mix)
+            {
+                var inputB = GetNodeInputPortB(targetRect.Min, targetRect.Max);
+                if (TryGetConnectionDistanceToPoint(node.InputBId, nodeRects, inputB, allowCamera: false, mousePos, out var distanceB) && distanceB < bestDistance)
+                {
+                    bestDistance = distanceB;
+                    bestNode = node;
+                    bestIsSecondInput = true;
+                }
+            }
+        }
+
+        if (bestNode is null)
+        {
+            return false;
+        }
+
+        if (bestIsSecondInput)
+        {
+            bestNode.InputBId = null;
+        }
+        else
+        {
+            bestNode.InputAId = null;
+        }
+
+        SanitizeNodeConnections();
+        return true;
+    }
+
+    private static bool TryGetConnectionDistanceToPoint(
+        int? sourceNodeId,
+        IReadOnlyDictionary<int, (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> nodeRects,
+        System.Numerics.Vector2 inputPort,
+        bool allowCamera,
+        System.Numerics.Vector2 point,
+        out float distance)
+    {
+        if (!sourceNodeId.HasValue)
+        {
+            if (!allowCamera)
+            {
+                distance = float.MaxValue;
+                return false;
+            }
+
+            var cameraStart = new System.Numerics.Vector2(inputPort.X - 130f, inputPort.Y - 18f);
+            distance = DistancePointToSegment(point, cameraStart, inputPort);
+            return true;
+        }
+
+        if (!nodeRects.TryGetValue(sourceNodeId.Value, out var sourceRect))
+        {
+            distance = float.MaxValue;
+            return false;
+        }
+
+        var outPort = GetNodeOutputPort(sourceRect.Min, sourceRect.Max);
+        var c1 = new System.Numerics.Vector2(outPort.X + 90f, outPort.Y);
+        var c2 = new System.Numerics.Vector2(inputPort.X - 90f, inputPort.Y);
+        distance = DistancePointToBezierApprox(point, outPort, c1, c2, inputPort);
+        return true;
+    }
+
+    private static float DistancePointToBezierApprox(System.Numerics.Vector2 point, System.Numerics.Vector2 p0, System.Numerics.Vector2 p1, System.Numerics.Vector2 p2, System.Numerics.Vector2 p3)
+    {
+        const int segments = 24;
+        var previous = p0;
+        var minDistance = float.MaxValue;
+
+        for (var i = 1; i <= segments; i++)
+        {
+            var t = i / (float)segments;
+            var current = CubicBezierPoint(p0, p1, p2, p3, t);
+            var distance = DistancePointToSegment(point, previous, current);
+            if (distance < minDistance)
+            {
+                minDistance = distance;
+            }
+
+            previous = current;
+        }
+
+        return minDistance;
+    }
+
+    private static System.Numerics.Vector2 CubicBezierPoint(System.Numerics.Vector2 p0, System.Numerics.Vector2 p1, System.Numerics.Vector2 p2, System.Numerics.Vector2 p3, float t)
+    {
+        var oneMinusT = 1f - t;
+        return (oneMinusT * oneMinusT * oneMinusT * p0)
+             + (3f * oneMinusT * oneMinusT * t * p1)
+             + (3f * oneMinusT * t * t * p2)
+             + (t * t * t * p3);
+    }
+
+    private static float DistancePointToSegment(System.Numerics.Vector2 point, System.Numerics.Vector2 a, System.Numerics.Vector2 b)
+    {
+        var ab = b - a;
+        var abLengthSquared = System.Numerics.Vector2.Dot(ab, ab);
+        if (abLengthSquared <= float.Epsilon)
+        {
+            return (point - a).Length();
+        }
+
+        var t = System.Numerics.Vector2.Dot(point - a, ab) / abLengthSquared;
+        t = Math.Clamp(t, 0f, 1f);
+        var projection = a + (ab * t);
+        return (point - projection).Length();
     }
 
     private void DrawNodeWidget(PipelineNode node, int nodeIndex, System.Numerics.Vector2 canvasMin, ImDrawListPtr drawList, (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max) rect)
@@ -540,6 +689,10 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
         {
             _selectedNodeId = node.Id;
+            if (_linkStartNodeId.HasValue && TryAutoLinkNodeOnSelection(node))
+            {
+                _linkStartNodeId = null;
+            }
         }
 
         if (ImGui.IsItemClicked(ImGuiMouseButton.Right) && node.Kind != PipelineNodeKind.Output)
@@ -604,13 +757,9 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
                 assignment = null;
             }
-            else
+            else if (!CanCreateConnection(sourceId, node.Id))
             {
-                var sourceIndex = _nodes.FindIndex(x => x.Id == sourceId);
-                if (sourceIndex < 0 || sourceIndex >= nodeIndex)
-                {
-                    return;
-                }
+                return;
             }
 
             if (useSecondInput)
@@ -624,6 +773,114 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
             SanitizeNodeConnections();
         }
+    }
+
+    private bool TryAutoLinkNodeOnSelection(PipelineNode targetNode)
+    {
+        if (!_linkStartNodeId.HasValue || _linkStartNodeId.Value == targetNode.Id)
+        {
+            return false;
+        }
+
+        if (targetNode.Kind == PipelineNodeKind.Stage && targetNode.Stage is not null && targetNode.Stage.IsSourceStage)
+        {
+            return false;
+        }
+
+        int? assignment;
+        var sourceId = _linkStartNodeId.Value;
+        if (sourceId == CameraVirtualNodeId)
+        {
+            if (targetNode.Kind == PipelineNodeKind.Mix)
+            {
+                return false;
+            }
+
+            assignment = null;
+        }
+        else
+        {
+            if (!CanCreateConnection(sourceId, targetNode.Id))
+            {
+                return false;
+            }
+
+            assignment = sourceId;
+        }
+
+        var assigned = false;
+        if (targetNode.Kind == PipelineNodeKind.Mix)
+        {
+            if (!targetNode.InputAId.HasValue)
+            {
+                targetNode.InputAId = assignment;
+                assigned = true;
+            }
+            else if (!targetNode.InputBId.HasValue)
+            {
+                targetNode.InputBId = assignment;
+                assigned = true;
+            }
+        }
+        else if (!targetNode.InputAId.HasValue)
+        {
+            targetNode.InputAId = assignment;
+            assigned = true;
+        }
+
+        if (!assigned)
+        {
+            return false;
+        }
+
+        SanitizeNodeConnections();
+        return true;
+    }
+
+    private bool CanCreateConnection(int sourceId, int targetId)
+    {
+        if (sourceId == targetId)
+        {
+            return false;
+        }
+
+        if (_nodes.All(x => x.Id != sourceId) || _nodes.All(x => x.Id != targetId))
+        {
+            return false;
+        }
+
+        return !WouldCreateCycle(sourceId, targetId);
+    }
+
+    private bool WouldCreateCycle(int sourceId, int targetId)
+    {
+        var stack = new Stack<int>();
+        var visited = new HashSet<int>();
+        stack.Push(targetId);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (current == sourceId)
+            {
+                return true;
+            }
+
+            if (!visited.Add(current))
+            {
+                continue;
+            }
+
+            foreach (var candidate in _nodes)
+            {
+                if (candidate.InputAId == current || candidate.InputBId == current)
+                {
+                    stack.Push(candidate.Id);
+                }
+            }
+        }
+
+        return false;
     }
 
     private void DrawOutputPort(ImDrawListPtr drawList, System.Numerics.Vector2 portPos, PipelineNode node)
@@ -1126,7 +1383,11 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         var liveIds = new HashSet<int>(_nodes.Select(x => x.Id));
         foreach (var node in _nodes)
         {
-            if (node.InputAId.HasValue && !liveIds.Contains(node.InputAId.Value))
+            if (node.Kind == PipelineNodeKind.Stage && node.Stage is not null && node.Stage.IsSourceStage)
+            {
+                node.InputAId = null;
+            }
+            else if (node.InputAId.HasValue && !liveIds.Contains(node.InputAId.Value))
             {
                 node.InputAId = null;
             }
@@ -1138,6 +1399,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         }
 
         EnsureOutputNode();
+        ReorderNodesTopologically();
 
         var outputNodes = _nodes.Where(x => x.Kind == PipelineNodeKind.Output).ToList();
         if (outputNodes.Count > 1)
@@ -1154,6 +1416,76 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         {
             _nodes.Remove(outputNode);
             _nodes.Add(outputNode);
+        }
+    }
+
+    private void ReorderNodesTopologically()
+    {
+        if (_nodes.Count <= 1)
+        {
+            return;
+        }
+
+        var ids = _nodes.Select(x => x.Id).ToHashSet();
+        var originalIndex = new Dictionary<int, int>(_nodes.Count);
+        for (var i = 0; i < _nodes.Count; i++)
+        {
+            originalIndex[_nodes[i].Id] = i;
+        }
+
+        var inDegree = _nodes.ToDictionary(x => x.Id, _ => 0);
+        var adjacency = _nodes.ToDictionary(x => x.Id, _ => new List<int>());
+
+        foreach (var node in _nodes)
+        {
+            if (node.InputAId.HasValue && ids.Contains(node.InputAId.Value) && node.InputAId.Value != node.Id)
+            {
+                adjacency[node.InputAId.Value].Add(node.Id);
+                inDegree[node.Id]++;
+            }
+
+            if (node.InputBId.HasValue && ids.Contains(node.InputBId.Value) && node.InputBId.Value != node.Id)
+            {
+                adjacency[node.InputBId.Value].Add(node.Id);
+                inDegree[node.Id]++;
+            }
+        }
+
+        var available = _nodes
+            .Where(x => inDegree[x.Id] == 0)
+            .OrderBy(x => originalIndex[x.Id])
+            .Select(x => x.Id)
+            .ToList();
+
+        var orderedIds = new List<int>(_nodes.Count);
+        while (available.Count > 0)
+        {
+            var nextId = available[0];
+            available.RemoveAt(0);
+            orderedIds.Add(nextId);
+
+            foreach (var dependentId in adjacency[nextId])
+            {
+                inDegree[dependentId]--;
+                if (inDegree[dependentId] == 0)
+                {
+                    available.Add(dependentId);
+                }
+            }
+
+            available.Sort((a, b) => originalIndex[a].CompareTo(originalIndex[b]));
+        }
+
+        if (orderedIds.Count != _nodes.Count)
+        {
+            return;
+        }
+
+        var byId = _nodes.ToDictionary(x => x.Id);
+        _nodes.Clear();
+        foreach (var id in orderedIds)
+        {
+            _nodes.Add(byId[id]);
         }
     }
 

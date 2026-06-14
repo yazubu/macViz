@@ -3,6 +3,7 @@
     {
       "Name": "SH Color Shift Radial blur",
       "Pipeline": {
+        "Nodes": [],
         "Stages": [
           {
             "StageTypeId": "camera.source",
@@ -105,6 +106,7 @@
     {
       "Name": "SH Color Shift Zoom blur",
       "Pipeline": {
+        "Nodes": [],
         "Stages": [
           {
             "StageTypeId": "camera.source",
@@ -207,6 +209,7 @@
     {
       "Name": "SH Wave over Edges",
       "Pipeline": {
+        "Nodes": [],
         "Stages": [
           {
             "StageTypeId": "camera.source",
@@ -320,6 +323,7 @@
     {
       "Name": "FFT Living TypoMatrix",
       "Pipeline": {
+        "Nodes": [],
         "Stages": [
           {
             "StageTypeId": "camera.source",
@@ -476,6 +480,7 @@
     {
       "Name": "Coloured Edges",
       "Pipeline": {
+        "Nodes": [],
         "Stages": [
           {
             "StageTypeId": "camera.source",
@@ -546,6 +551,140 @@
         {
           "SourceId": 1,
           "BinCount": 16,
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
+        }
+      ],
+      "ParameterModulations": []
+    },
+    {
+      "Name": "Test",
+      "Pipeline": {
+        "Nodes": [
+          {
+            "NodeId": 1,
+            "NodeKind": "Stage",
+            "StageTypeId": "camera.source",
+            "InputAId": null,
+            "InputBId": null,
+            "PositionX": 40,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0
+            }
+          },
+          {
+            "NodeId": 2,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.edgeDetect",
+            "InputAId": 1,
+            "InputBId": null,
+            "PositionX": 360,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Edge Effect / Strength": 1.4,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            }
+          },
+          {
+            "NodeId": 3,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.snapshotPeak",
+            "InputAId": 2,
+            "InputBId": null,
+            "PositionX": 680,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Snapshot Effect / Signal": 0,
+              "Snapshot Effect / Peak Threshold": 0.8,
+              "Snapshot Effect / Min Interval (s)": 0.2,
+              "Snapshot Effect / Hold Time (s)": 2.5,
+              "Snapshot Effect / Count": 8,
+              "Snapshot Effect / Opacity": 1,
+              "Snapshot Effect / Opacity Drop": 0.2,
+              "Snapshot Effect / Mix": 1
+            }
+          },
+          {
+            "NodeId": 5,
+            "NodeKind": "Stage",
+            "StageTypeId": "source.particleSystem",
+            "InputAId": null,
+            "InputBId": null,
+            "PositionX": 19,
+            "PositionY": 224,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "ParticleCount": 1200,
+              "RotationSpeedX": 0.7,
+              "RotationSpeedY": 1.1,
+              "Radius": 1.1,
+              "PointSize": 4,
+              "ColorIntensity": 1
+            }
+          },
+          {
+            "NodeId": 6,
+            "NodeKind": "Mix",
+            "StageTypeId": null,
+            "InputAId": 3,
+            "InputBId": 5,
+            "PositionX": 751,
+            "PositionY": 260,
+            "ParameterValues": {
+              "Mix Box / Mix": 1,
+              "Mix Box / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0
+            }
+          },
+          {
+            "NodeId": 7,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.chromaticSmear",
+            "InputAId": 5,
+            "InputBId": null,
+            "PositionX": 330,
+            "PositionY": 342,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Chromatic Smear / Channel Offset (px)": 10,
+              "Chromatic Smear / Motion Gain": 1.25,
+              "Chromatic Smear / Motion Threshold": 0.07,
+              "Chromatic Smear / Motion Softness": 0.12,
+              "Chromatic Smear / Feedback Decay": 0.985,
+              "Chromatic Smear / Fresh Mix": 0.16,
+              "Chromatic Smear / Smear Amount": 1,
+              "Chromatic Smear / Mix": 1
+            }
+          },
+          {
+            "NodeId": 4,
+            "NodeKind": "Output",
+            "StageTypeId": null,
+            "InputAId": 6,
+            "InputBId": null,
+            "PositionX": 1000,
+            "PositionY": 94,
+            "ParameterValues": {}
+          }
+        ],
+        "Stages": []
+      },
+      "Lfos": [],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 8,
           "Smoothing": 0.75,
           "LogarithmicGrouping": false,
           "ExpandVariability": false,
