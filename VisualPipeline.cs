@@ -23,9 +23,16 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
     private int _blitProgram;
     private int _blitProgramFlipY;
+    private int _blendProgram;
+    private int _uBlendBaseTexture;
+    private int _uBlendLayerTexture;
+    private int _uBlendMix;
+    private int _uBlendMode;
 
     private readonly int[] _pingTextures = new int[2];
     private readonly int[] _pingFbos = new int[2];
+    private int _stageTexture;
+    private int _stageFbo;
     private int _copyFboRead;
     private int _copyFboDraw;
     private int _renderWidth;
@@ -70,6 +77,29 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             RefreshDynamicStageParameters();
             return _parameters;
         }
+    }
+
+    public bool TryGetStageDescriptorForParameter(IParameter parameter, out int stageNumber, out string stageName)
+    {
+        for (var i = 0; i < _stages.Count; i++)
+        {
+            var stage = _stages[i];
+            foreach (var stageParameter in stage.GetAllParameters())
+            {
+                if (!ReferenceEquals(stageParameter, parameter))
+                {
+                    continue;
+                }
+
+                stageNumber = i + 1;
+                stageName = stage.Name;
+                return true;
+            }
+        }
+
+        stageNumber = 0;
+        stageName = string.Empty;
+        return false;
     }
 
     public IReadOnlyList<int> AvailableDeviceIndices => _deviceIndices;
@@ -129,7 +159,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
                 InputSource = stage.InputSource.ToString()
             };
 
-            foreach (var parameter in stage.Parameters)
+            foreach (var parameter in stage.GetAllParameters())
             {
                 stageState.ParameterValues[parameter.Name] = GetParameterNumericValue(parameter);
             }
@@ -163,7 +193,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
                 stage.InputSource = inputSource;
             }
 
-            foreach (var parameter in stage.Parameters)
+            foreach (var parameter in stage.GetAllParameters())
             {
                 if (stageState.ParameterValues.TryGetValue(parameter.Name, out var numericValue))
                 {
@@ -173,7 +203,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
             if (stage.RefreshDynamicParameters())
             {
-                foreach (var parameter in stage.Parameters)
+                foreach (var parameter in stage.GetAllParameters())
                 {
                     if (stageState.ParameterValues.TryGetValue(parameter.Name, out var numericValue))
                     {
@@ -335,6 +365,18 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         {
             var stage = _stages[i];
             var isLast = i == _stages.Count - 1;
+            var currentTexture = previousTexture != 0 ? previousTexture : cameraTexture;
+            var inputTexture = stage.InputSource == PipelineInputSource.Camera
+                ? cameraTexture
+                : currentTexture;
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _stageFbo);
+            GL.Viewport(0, 0, _renderWidth, _renderHeight);
+            GL.ClearColor(0f, 0f, 0f, 1f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            stage.EnsureResources(this);
+            stage.Render(this, inputTexture, spectrum, time);
 
             if (isLast)
             {
@@ -349,12 +391,8 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             GL.ClearColor(0f, 0f, 0f, 1f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            var inputTexture = stage.InputSource == PipelineInputSource.Camera
-                ? cameraTexture
-                : (previousTexture != 0 ? previousTexture : cameraTexture);
-
-            stage.EnsureResources(this);
-            stage.Render(this, inputTexture, spectrum, time);
+            var baseTexture = currentTexture != 0 ? currentTexture : inputTexture;
+            DrawStageBlend(stage, baseTexture, _stageTexture);
 
             if (!isLast)
             {
@@ -463,6 +501,35 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             {
                 throw new InvalidOperationException($"VisualPipeline ping framebuffer incomplete: {status}");
             }
+        }
+
+        if (_stageTexture != 0)
+        {
+            GL.DeleteTexture(_stageTexture);
+            _stageTexture = 0;
+        }
+
+        if (_stageFbo != 0)
+        {
+            GL.DeleteFramebuffer(_stageFbo);
+            _stageFbo = 0;
+        }
+
+        _stageTexture = CreateRenderTexture(width, height);
+        _stageFbo = GL.GenFramebuffer();
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, _stageFbo);
+        GL.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            TextureTarget.Texture2D,
+            _stageTexture,
+            0);
+
+        var stageStatus = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+        if (stageStatus != FramebufferErrorCode.FramebufferComplete)
+        {
+            throw new InvalidOperationException($"VisualPipeline stage framebuffer incomplete: {stageStatus}");
         }
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
@@ -574,6 +641,62 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
         _copyFboRead = GL.GenFramebuffer();
         _copyFboDraw = GL.GenFramebuffer();
+
+        const string blendFragment = """
+            #version 330 core
+            in vec2 vUv;
+            out vec4 fragColor;
+
+            uniform sampler2D uBaseTexture;
+            uniform sampler2D uLayerTexture;
+            uniform float uMix;
+            uniform int uBlendMode;
+
+            vec3 blendMode(vec3 baseColor, vec3 layerColor, int mode)
+            {
+                if (mode == 1) return max(baseColor - layerColor, vec3(0.0));
+                if (mode == 2) return baseColor * layerColor;
+                if (mode == 3) return min(baseColor, layerColor);
+                if (mode == 4) return max(baseColor, layerColor);
+                if (mode == 5) return 1.0 - ((1.0 - baseColor) * (1.0 - layerColor));
+                if (mode == 6) return abs(baseColor - layerColor);
+                if (mode == 7)
+                {
+                    vec3 low = 2.0 * baseColor * layerColor;
+                    vec3 high = 1.0 - (2.0 * (1.0 - baseColor) * (1.0 - layerColor));
+                    return mix(low, high, step(vec3(0.5), baseColor));
+                }
+                if (mode == 8)
+                {
+                    vec3 low = 2.0 * baseColor * layerColor;
+                    vec3 high = 1.0 - (2.0 * (1.0 - baseColor) * (1.0 - layerColor));
+                    return mix(low, high, step(vec3(0.5), layerColor));
+                }
+                if (mode == 9) return clamp(baseColor / max(layerColor, vec3(0.001)), 0.0, 1.0);
+                if (mode == 10) return clamp(baseColor / max(vec3(0.001), 1.0 - layerColor), 0.0, 1.0);
+                return layerColor;
+            }
+
+            void main()
+            {
+                vec3 baseColor = texture(uBaseTexture, vUv).rgb;
+                vec3 layerColor = texture(uLayerTexture, vUv).rgb;
+                vec3 blended = blendMode(baseColor, layerColor, clamp(uBlendMode, 0, 10));
+                vec3 color = mix(baseColor, blended, clamp(uMix, 0.0, 1.0));
+                fragColor = vec4(color, 1.0);
+            }
+            """;
+
+        _blendProgram = CompileProgram(vertexSource, blendFragment);
+        _uBlendBaseTexture = GL.GetUniformLocation(_blendProgram, "uBaseTexture");
+        _uBlendLayerTexture = GL.GetUniformLocation(_blendProgram, "uLayerTexture");
+        _uBlendMix = GL.GetUniformLocation(_blendProgram, "uMix");
+        _uBlendMode = GL.GetUniformLocation(_blendProgram, "uBlendMode");
+
+        GL.UseProgram(_blendProgram);
+        GL.Uniform1(_uBlendBaseTexture, 0);
+        GL.Uniform1(_uBlendLayerTexture, 1);
+        GL.UseProgram(0);
     }
 
     internal void DrawFullscreen(int shaderProgram, int inputTexture)
@@ -654,6 +777,14 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
     }
 
+    private void DrawStageBlend(PipelineStage stage, int baseTexture, int layerTexture)
+    {
+        GL.UseProgram(_blendProgram);
+        GL.Uniform1(_uBlendMix, stage.StageMix.CurrentValue);
+        GL.Uniform1(_uBlendMode, stage.BlendMode.CurrentValue);
+        DrawFullscreenWithTextures(_blendProgram, (0, baseTexture), (1, layerTexture));
+    }
+
     private void RefreshDynamicStageParameters()
     {
         var changed = false;
@@ -676,7 +807,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         _parameters.Clear();
         foreach (var stage in _stages)
         {
-            _parameters.AddRange(stage.Parameters);
+            _parameters.AddRange(stage.GetAllParameters());
         }
     }
 
@@ -796,6 +927,8 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
         if (_copyFboRead != 0) GL.DeleteFramebuffer(_copyFboRead);
         if (_copyFboDraw != 0) GL.DeleteFramebuffer(_copyFboDraw);
+        if (_stageFbo != 0) GL.DeleteFramebuffer(_stageFbo);
+        if (_stageTexture != 0) GL.DeleteTexture(_stageTexture);
 
         if (_quadEbo != 0) GL.DeleteBuffer(_quadEbo);
         if (_quadVbo != 0) GL.DeleteBuffer(_quadVbo);
@@ -803,6 +936,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
         if (_blitProgram != 0) GL.DeleteProgram(_blitProgram);
         if (_blitProgramFlipY != 0) GL.DeleteProgram(_blitProgramFlipY);
+        if (_blendProgram != 0) GL.DeleteProgram(_blendProgram);
     }
 
     private sealed record StageFactory(string TypeId, string Label, Func<PipelineStage> Create);
@@ -815,11 +949,27 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
     private abstract class PipelineStage : IDisposable
     {
+        private readonly Parameter<float> _stageMix = new("Stage / Mix", 0f, 1f, 1f);
+        private readonly Parameter<int> _blendMode = new("Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)", 0, 10, 0);
+
         public abstract string TypeId { get; }
         public abstract string Name { get; }
         public abstract IReadOnlyList<IParameter> Parameters { get; }
         public virtual bool SupportsInputSelection => true;
         public PipelineInputSource InputSource { get; set; } = PipelineInputSource.Previous;
+        public Parameter<float> StageMix => _stageMix;
+        public Parameter<int> BlendMode => _blendMode;
+
+        public IEnumerable<IParameter> GetAllParameters()
+        {
+            yield return _stageMix;
+            yield return _blendMode;
+
+            foreach (var parameter in Parameters)
+            {
+                yield return parameter;
+            }
+        }
 
         public virtual bool RefreshDynamicParameters()
         {

@@ -654,54 +654,117 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawParameters(IVisual visual)
     {
+        var sectionOrder = new List<string>();
+        var sectionMap = new Dictionary<string, List<int>>();
+
         for (var i = 0; i < visual.Parameters.Count; i++)
         {
-            var parameter = visual.Parameters[i];
-            var isSelected = i == _selectedParameterIndex;
-            if (isSelected)
+            var sectionName = GetParameterSectionName(visual.Parameters[i].Name);
+            if (!sectionMap.TryGetValue(sectionName, out var indices))
             {
-                ImGui.PushStyleColor(ImGuiCol.FrameBg, new System.Numerics.Vector4(0.25f, 0.35f, 0.55f, 1f));
+                indices = [];
+                sectionMap[sectionName] = indices;
+                sectionOrder.Add(sectionName);
             }
 
-            switch (parameter)
+            indices.Add(i);
+        }
+
+        foreach (var sectionName in sectionOrder)
+        {
+            var indices = sectionMap[sectionName];
+            ImGui.PushID($"param_section_{sectionName}");
+            ImGui.SetNextItemOpen(false, ImGuiCond.FirstUseEver);
+
+            if (ImGui.CollapsingHeader($"{sectionName} ({indices.Count})"))
             {
-                case Parameter<int> intParameter:
+                for (var sectionIndex = 0; sectionIndex < indices.Count; sectionIndex++)
                 {
-                    var value = intParameter.Value;
-                    ImGui.SetNextItemWidth(220);
-                    if (ImGui.SliderInt(intParameter.Name, ref value, intParameter.Min, intParameter.Max))
-                    {
-                        intParameter.Value = value;
-                    }
-
-                    ImGui.SameLine();
-                    ImGui.TextDisabled($"= {intParameter.CurrentValue}");
-                    break;
-                }
-                case Parameter<float> floatParameter:
-                {
-                    var value = floatParameter.Value;
-                    ImGui.SetNextItemWidth(220);
-                    if (ImGui.SliderFloat(floatParameter.Name, ref value, floatParameter.Min, floatParameter.Max))
-                    {
-                        floatParameter.Value = value;
-                    }
-
-                    ImGui.SameLine();
-                    ImGui.TextDisabled($"= {floatParameter.CurrentValue:F2}");
-                    break;
+                    var parameterIndex = indices[sectionIndex];
+                    DrawParameterControl(visual, visual.Parameters[parameterIndex], parameterIndex);
                 }
             }
 
-            if (isSelected)
-            {
-                ImGui.PopStyleColor();
-            }
-
-            ImGui.Separator();
+            ImGui.PopID();
         }
 
         ImGui.TextDisabled("Tab: next parameter | Shift+Tab: previous | Left/Right: adjust base value");
+    }
+
+    private void DrawParameterControl(IVisual visual, IParameter parameter, int parameterIndex)
+    {
+        ImGui.PushID(parameterIndex);
+
+        var isSelected = parameterIndex == _selectedParameterIndex;
+        if (isSelected)
+        {
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, new System.Numerics.Vector4(0.25f, 0.35f, 0.55f, 1f));
+        }
+
+        var parameterLabel = GetParameterDisplayName(parameter.Name);
+        if (visual is VisualPipeline visualPipeline &&
+            IsStageCoreParameter(parameter.Name) &&
+            visualPipeline.TryGetStageDescriptorForParameter(parameter, out var stageNumber, out var stageName))
+        {
+            parameterLabel = $"Stage {stageNumber} ({stageName}) / {parameterLabel}";
+        }
+
+        switch (parameter)
+        {
+            case Parameter<int> intParameter:
+            {
+                var value = intParameter.Value;
+                ImGui.SetNextItemWidth(220);
+                if (ImGui.SliderInt(parameterLabel, ref value, intParameter.Min, intParameter.Max))
+                {
+                    intParameter.Value = value;
+                }
+
+                ImGui.SameLine();
+                ImGui.TextDisabled($"= {intParameter.CurrentValue}");
+                break;
+            }
+            case Parameter<float> floatParameter:
+            {
+                var value = floatParameter.Value;
+                ImGui.SetNextItemWidth(220);
+                if (ImGui.SliderFloat(parameterLabel, ref value, floatParameter.Min, floatParameter.Max))
+                {
+                    floatParameter.Value = value;
+                }
+
+                ImGui.SameLine();
+                ImGui.TextDisabled($"= {floatParameter.CurrentValue:F2}");
+                break;
+            }
+        }
+
+        if (isSelected)
+        {
+            ImGui.PopStyleColor();
+        }
+
+        ImGui.Separator();
+        ImGui.PopID();
+    }
+
+    private static bool IsStageCoreParameter(string parameterName)
+    {
+        return parameterName.StartsWith("Stage / ", StringComparison.Ordinal);
+    }
+
+    private static string GetParameterSectionName(string parameterName)
+    {
+        const string separator = " / ";
+        var separatorIndex = parameterName.IndexOf(separator, StringComparison.Ordinal);
+        return separatorIndex > 0 ? parameterName[..separatorIndex] : "General";
+    }
+
+    private static string GetParameterDisplayName(string parameterName)
+    {
+        const string separator = " / ";
+        var separatorIndex = parameterName.IndexOf(separator, StringComparison.Ordinal);
+        return separatorIndex > 0 ? parameterName[(separatorIndex + separator.Length)..] : parameterName;
     }
 
     private static void DrawCameraControls(ICameraVisual cameraVisual)
@@ -799,183 +862,236 @@ public class MinimalGameWindow : GameWindow
         ImGui.Text("Mod Matrix");
         ImGui.TextDisabled("Assigned source output multiplies the base parameter value.");
 
+        var sectionOrder = new List<string>();
+        var sectionMap = new Dictionary<string, List<int>>();
+
+        for (var i = 0; i < visual.Parameters.Count; i++)
+        {
+            var parameter = visual.Parameters[i];
+            var sectionName = GetModMatrixSectionName(visual, parameter);
+            if (!sectionMap.TryGetValue(sectionName, out var indices))
+            {
+                indices = [];
+                sectionMap[sectionName] = indices;
+                sectionOrder.Add(sectionName);
+            }
+
+            indices.Add(i);
+        }
+
         var columns = 2 + _fftSources.Count + _lfoEngine.Lfos.Count;
         var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollX;
-        if (!ImGui.BeginTable("LfoModMatrix", columns, flags, new System.Numerics.Vector2(1100, 320)))
+
+        foreach (var sectionName in sectionOrder)
         {
-            return;
-        }
+            var sectionIndices = sectionMap[sectionName];
+            ImGui.PushID($"mod_matrix_section_{sectionName}");
+            ImGui.SetNextItemOpen(false, ImGuiCond.FirstUseEver);
 
-        ImGui.TableSetupColumn("Parameter", ImGuiTableColumnFlags.WidthFixed, 260);
-        ImGui.TableSetupColumn("LFO↔FFT", ImGuiTableColumnFlags.WidthFixed, 120);
-
-        foreach (var fft in _fftSources)
-        {
-            ImGui.TableSetupColumn($"FFT {fft.Id}", ImGuiTableColumnFlags.WidthFixed, 120);
-        }
-
-        foreach (var lfo in _lfoEngine.Lfos)
-        {
-            ImGui.TableSetupColumn($"LFO {lfo.Id}", ImGuiTableColumnFlags.WidthFixed, 120);
-        }
-
-        ImGui.TableHeadersRow();
-
-        for (var row = 0; row < visual.Parameters.Count; row++)
-        {
-            var parameter = visual.Parameters[row];
-
-            ImGui.TableNextRow();
-            ImGui.TableSetColumnIndex(0);
-            ImGui.Text(parameter.Name);
-
-            ImGui.TableSetColumnIndex(1);
-            ImGui.PushID($"mode_{row}");
-            var interactionMode = _lfoFftInteractionModes.GetValueOrDefault(parameter, ModulationInteractionMode.Add);
-            if (ImGui.BeginCombo("##interaction", interactionMode.ToString()))
+            if (ImGui.CollapsingHeader($"{sectionName} ({sectionIndices.Count})"))
             {
-                foreach (ModulationInteractionMode candidate in Enum.GetValues<ModulationInteractionMode>())
+                if (ImGui.BeginTable("LfoModMatrix", columns, flags, new System.Numerics.Vector2(1100, 320)))
                 {
-                    var isSelected = candidate == interactionMode;
-                    if (ImGui.Selectable(candidate.ToString(), isSelected))
+                    ImGui.TableSetupColumn("Parameter", ImGuiTableColumnFlags.WidthFixed, 260);
+                    ImGui.TableSetupColumn("LFO↔FFT", ImGuiTableColumnFlags.WidthFixed, 120);
+
+                    foreach (var fft in _fftSources)
                     {
-                        _lfoFftInteractionModes[parameter] = candidate;
-                        interactionMode = candidate;
+                        ImGui.TableSetupColumn($"FFT {fft.Id}", ImGuiTableColumnFlags.WidthFixed, 120);
                     }
 
-                    if (isSelected)
+                    foreach (var lfo in _lfoEngine.Lfos)
                     {
-                        ImGui.SetItemDefaultFocus();
+                        ImGui.TableSetupColumn($"LFO {lfo.Id}", ImGuiTableColumnFlags.WidthFixed, 120);
                     }
+
+                    ImGui.TableHeadersRow();
+
+                    for (var sectionRow = 0; sectionRow < sectionIndices.Count; sectionRow++)
+                    {
+                        var row = sectionIndices[sectionRow];
+                        DrawLfoAssignmentMatrixRow(visual, row, visual.Parameters[row]);
+                    }
+
+                    ImGui.EndTable();
                 }
-
-                ImGui.EndCombo();
             }
 
             ImGui.PopID();
+        }
+    }
 
-            for (var fftCol = 0; fftCol < _fftSources.Count; fftCol++)
+    private void DrawLfoAssignmentMatrixRow(IVisual visual, int row, IParameter parameter)
+    {
+        ImGui.TableNextRow();
+        ImGui.TableSetColumnIndex(0);
+        ImGui.Text(GetModMatrixParameterLabel(visual, parameter));
+
+        ImGui.TableSetColumnIndex(1);
+        ImGui.PushID($"mode_{row}");
+        var interactionMode = _lfoFftInteractionModes.GetValueOrDefault(parameter, ModulationInteractionMode.Add);
+        if (ImGui.BeginCombo("##interaction", interactionMode.ToString()))
+        {
+            foreach (ModulationInteractionMode candidate in Enum.GetValues<ModulationInteractionMode>())
             {
-                var fft = _fftSources[fftCol];
-                var audioKey = (parameter, fft.Id);
-                ImGui.TableSetColumnIndex(fftCol + 2);
-                ImGui.PushID($"fft_cell_{row}_{fft.Id}");
-
-                var fftAssigned = _audioModulationMatrix.TryGetValue(audioKey, out var audioMod);
-                if (ImGui.Checkbox("##assign", ref fftAssigned))
+                var isSelected = candidate == interactionMode;
+                if (ImGui.Selectable(candidate.ToString(), isSelected))
                 {
-                    if (fftAssigned)
-                    {
-                        _audioModulationMatrix[audioKey] = audioMod ?? new AudioModulation();
-                    }
-                    else
-                    {
-                        _audioModulationMatrix.Remove(audioKey);
-                    }
+                    _lfoFftInteractionModes[parameter] = candidate;
+                    interactionMode = candidate;
                 }
 
-                if (fftAssigned)
+                if (isSelected)
                 {
-                    audioMod ??= new AudioModulation();
-                    _audioModulationMatrix[audioKey] = audioMod;
-
-                    if (audioMod.AudioBinIndex >= fft.BinCount)
-                    {
-                        audioMod.AudioBinIndex = Math.Max(0, fft.BinCount - 1);
-                    }
-
-                    var currentBinLabel = $"Bin {audioMod.AudioBinIndex + 1}";
-                    if (ImGui.BeginCombo("##fftBin", currentBinLabel))
-                    {
-                        for (var bin = 0; bin < fft.BinCount; bin++)
-                        {
-                            var isSelected = bin == audioMod.AudioBinIndex;
-                            if (ImGui.Selectable($"Bin {bin + 1}", isSelected))
-                            {
-                                audioMod.AudioBinIndex = bin;
-                            }
-
-                            if (isSelected)
-                            {
-                                ImGui.SetItemDefaultFocus();
-                            }
-                        }
-
-                        ImGui.EndCombo();
-                    }
-
-                    var audioScale = audioMod.Scale;
-                    ImGui.SetNextItemWidth(120);
-                    if (ImGui.SliderFloat("##fftScale", ref audioScale, 0f, 2f, "Scale %.2f"))
-                    {
-                        audioMod.Scale = audioScale;
-                    }
-
-                    var audioOffset = audioMod.Offset;
-                    ImGui.SetNextItemWidth(120);
-                    if (ImGui.SliderFloat("##fftOffset", ref audioOffset, -1f, 1f, "Offset %.2f"))
-                    {
-                        audioMod.Offset = audioOffset;
-                    }
-
-                    var binValue = GetAudioBinValue(fft.Id, audioMod.AudioBinIndex);
-                    var binModulated = (binValue * audioMod.Scale) + audioMod.Offset;
-                    ImGui.TextDisabled($"BIN: {binValue:F2} → {binModulated:F2}");
+                    ImGui.SetItemDefaultFocus();
                 }
-
-                ImGui.PopID();
             }
 
-            for (var lfoCol = 0; lfoCol < _lfoEngine.Lfos.Count; lfoCol++)
-            {
-                var lfo = _lfoEngine.Lfos[lfoCol];
-                var key = (parameter, lfo.Id);
-
-                ImGui.TableSetColumnIndex(lfoCol + 2 + _fftSources.Count);
-                ImGui.PushID($"cell_{row}_{lfo.Id}");
-
-                var assigned = _modulationMatrix.TryGetValue(key, out var modulation);
-                if (ImGui.Checkbox("##assign", ref assigned))
-                {
-                    if (assigned)
-                    {
-                        _modulationMatrix[key] = modulation ?? new LfoModulation();
-                    }
-                    else
-                    {
-                        _modulationMatrix.Remove(key);
-                    }
-                }
-
-                if (assigned)
-                {
-                    modulation ??= new LfoModulation();
-                    _modulationMatrix[key] = modulation;
-
-                    var scale = modulation.Scale;
-                    ImGui.SetNextItemWidth(120);
-                    if (ImGui.SliderFloat("##scale", ref scale, 0f, 2f, "Scale %.2f"))
-                    {
-                        modulation.Scale = scale;
-                    }
-
-                    var offset = modulation.Offset;
-                    ImGui.SetNextItemWidth(120);
-                    if (ImGui.SliderFloat("##offset", ref offset, -1f, 1f, "Offset %.2f"))
-                    {
-                        modulation.Offset = offset;
-                    }
-
-                    var lfoValue = lfo.Output;
-                    var lfoModulated = (lfoValue * modulation.Scale) + modulation.Offset;
-                    ImGui.TextDisabled($"LFO: {lfoValue:F2} → {lfoModulated:F2}");
-                }
-
-                ImGui.PopID();
-            }
+            ImGui.EndCombo();
         }
 
-        ImGui.EndTable();
+        ImGui.PopID();
+
+        for (var fftCol = 0; fftCol < _fftSources.Count; fftCol++)
+        {
+            var fft = _fftSources[fftCol];
+            var audioKey = (parameter, fft.Id);
+            ImGui.TableSetColumnIndex(fftCol + 2);
+            ImGui.PushID($"fft_cell_{row}_{fft.Id}");
+
+            var fftAssigned = _audioModulationMatrix.TryGetValue(audioKey, out var audioMod);
+            if (ImGui.Checkbox("##assign", ref fftAssigned))
+            {
+                if (fftAssigned)
+                {
+                    _audioModulationMatrix[audioKey] = audioMod ?? new AudioModulation();
+                }
+                else
+                {
+                    _audioModulationMatrix.Remove(audioKey);
+                }
+            }
+
+            if (fftAssigned)
+            {
+                audioMod ??= new AudioModulation();
+                _audioModulationMatrix[audioKey] = audioMod;
+
+                if (audioMod.AudioBinIndex >= fft.BinCount)
+                {
+                    audioMod.AudioBinIndex = Math.Max(0, fft.BinCount - 1);
+                }
+
+                var currentBinLabel = $"Bin {audioMod.AudioBinIndex + 1}";
+                if (ImGui.BeginCombo("##fftBin", currentBinLabel))
+                {
+                    for (var bin = 0; bin < fft.BinCount; bin++)
+                    {
+                        var isSelected = bin == audioMod.AudioBinIndex;
+                        if (ImGui.Selectable($"Bin {bin + 1}", isSelected))
+                        {
+                            audioMod.AudioBinIndex = bin;
+                        }
+
+                        if (isSelected)
+                        {
+                            ImGui.SetItemDefaultFocus();
+                        }
+                    }
+
+                    ImGui.EndCombo();
+                }
+
+                var audioScale = audioMod.Scale;
+                ImGui.SetNextItemWidth(120);
+                if (ImGui.SliderFloat("##fftScale", ref audioScale, 0f, 2f, "Scale %.2f"))
+                {
+                    audioMod.Scale = audioScale;
+                }
+
+                var audioOffset = audioMod.Offset;
+                ImGui.SetNextItemWidth(120);
+                if (ImGui.SliderFloat("##fftOffset", ref audioOffset, -1f, 1f, "Offset %.2f"))
+                {
+                    audioMod.Offset = audioOffset;
+                }
+
+                var binValue = GetAudioBinValue(fft.Id, audioMod.AudioBinIndex);
+                var binModulated = (binValue * audioMod.Scale) + audioMod.Offset;
+                ImGui.TextDisabled($"BIN: {binValue:F2} → {binModulated:F2}");
+            }
+
+            ImGui.PopID();
+        }
+
+        for (var lfoCol = 0; lfoCol < _lfoEngine.Lfos.Count; lfoCol++)
+        {
+            var lfo = _lfoEngine.Lfos[lfoCol];
+            var key = (parameter, lfo.Id);
+
+            ImGui.TableSetColumnIndex(lfoCol + 2 + _fftSources.Count);
+            ImGui.PushID($"cell_{row}_{lfo.Id}");
+
+            var assigned = _modulationMatrix.TryGetValue(key, out var modulation);
+            if (ImGui.Checkbox("##assign", ref assigned))
+            {
+                if (assigned)
+                {
+                    _modulationMatrix[key] = modulation ?? new LfoModulation();
+                }
+                else
+                {
+                    _modulationMatrix.Remove(key);
+                }
+            }
+
+            if (assigned)
+            {
+                modulation ??= new LfoModulation();
+                _modulationMatrix[key] = modulation;
+
+                var scale = modulation.Scale;
+                ImGui.SetNextItemWidth(120);
+                if (ImGui.SliderFloat("##scale", ref scale, 0f, 2f, "Scale %.2f"))
+                {
+                    modulation.Scale = scale;
+                }
+
+                var offset = modulation.Offset;
+                ImGui.SetNextItemWidth(120);
+                if (ImGui.SliderFloat("##offset", ref offset, -1f, 1f, "Offset %.2f"))
+                {
+                    modulation.Offset = offset;
+                }
+
+                var lfoValue = lfo.Output;
+                var lfoModulated = (lfoValue * modulation.Scale) + modulation.Offset;
+                ImGui.TextDisabled($"LFO: {lfoValue:F2} → {lfoModulated:F2}");
+            }
+
+            ImGui.PopID();
+        }
+    }
+
+    private static string GetModMatrixSectionName(IVisual visual, IParameter parameter)
+    {
+        if (visual is VisualPipeline visualPipeline &&
+            visualPipeline.TryGetStageDescriptorForParameter(parameter, out var stageNumber, out var stageName))
+        {
+            return $"Stage {stageNumber} ({stageName})";
+        }
+
+        return GetParameterSectionName(parameter.Name);
+    }
+
+    private static string GetModMatrixParameterLabel(IVisual visual, IParameter parameter)
+    {
+        if (visual is VisualPipeline)
+        {
+            return GetParameterDisplayName(parameter.Name);
+        }
+
+        return GetParameterDisplayName(parameter.Name);
     }
 
     private void DrawPipelinePresetManager(VisualPipeline visualPipeline)

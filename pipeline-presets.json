@@ -67,7 +67,10 @@
         {
           "SourceId": 1,
           "BinCount": 8,
-          "Smoothing": 0.75
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
         }
       ],
       "ParameterModulations": [
@@ -166,7 +169,10 @@
         {
           "SourceId": 1,
           "BinCount": 8,
-          "Smoothing": 0.75
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
         }
       ],
       "ParameterModulations": [
@@ -263,7 +269,10 @@
         {
           "SourceId": 1,
           "BinCount": 8,
-          "Smoothing": 0.75
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
         }
       ],
       "ParameterModulations": [
@@ -386,7 +395,10 @@
         {
           "SourceId": 1,
           "BinCount": 16,
-          "Smoothing": 0.75
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
         }
       ],
       "ParameterModulations": [
@@ -460,6 +472,87 @@
           "FftAssignments": []
         }
       ]
+    },
+    {
+      "Name": "Coloured Edges",
+      "Pipeline": {
+        "Stages": [
+          {
+            "StageTypeId": "camera.source",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0
+            }
+          },
+          {
+            "StageTypeId": "effect.edgeDetect",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 1,
+              "Edge Effect / Strength": 1.4,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            }
+          },
+          {
+            "StageTypeId": "effect.posterize",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Posterize Effect / Levels": 2,
+              "Posterize Effect / Gamma": 1,
+              "Posterize Effect / Mix": 1
+            }
+          },
+          {
+            "StageTypeId": "effect.edgeDetect",
+            "InputSource": "Previous",
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 3,
+              "Edge Effect / Strength": 1.596,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            }
+          }
+        ]
+      },
+      "Lfos": [
+        {
+          "SourceId": 1,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 2,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 0.5
+        }
+      ],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 16,
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
+        }
+      ],
+      "ParameterModulations": []
     }
   ]
 }
