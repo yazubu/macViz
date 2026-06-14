@@ -99,6 +99,8 @@ public partial class MinimalGameWindow
 
     private PipelinePresetEntry CapturePipelinePreset(string presetName, VisualPipeline visualPipeline)
     {
+        EnsureModGraphTargets(visualPipeline);
+
         var entry = new PipelinePresetEntry
         {
             Name = presetName,
@@ -129,6 +131,16 @@ public partial class MinimalGameWindow
                 LogarithmicGrouping = fft.LogarithmicGrouping,
                 ExpandVariability = fft.ExpandVariability,
                 VariabilityWindowSeconds = fft.VariabilityWindowSeconds
+            });
+        }
+
+        foreach (var target in _modGraphTargets.Values.OrderBy(x => x.Key, StringComparer.Ordinal))
+        {
+            entry.ModGraphNodePositions.Add(new ModGraphNodePositionDto
+            {
+                NodeKey = target.Key,
+                X = target.Position.X,
+                Y = target.Position.Y
             });
         }
 
@@ -272,6 +284,18 @@ public partial class MinimalGameWindow
 
         SanitizeAudioBinAssignments();
         RebuildModulationGraphFromAssignments(visualPipeline);
+
+        if (preset.ModGraphNodePositions.Count > 0)
+        {
+            foreach (var nodePos in preset.ModGraphNodePositions)
+            {
+                if (_modGraphTargets.TryGetValue(nodePos.NodeKey, out var node))
+                {
+                    node.Position = new System.Numerics.Vector2(nodePos.X, nodePos.Y);
+                }
+            }
+        }
+
         _pipelinePresetStatus = $"Applied preset '{preset.Name}'.";
     }
 

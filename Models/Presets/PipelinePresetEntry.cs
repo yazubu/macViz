@@ -7,4 +7,5 @@ internal sealed class PipelinePresetEntry
     public List<LfoStateDto> Lfos { get; set; } = [];
     public List<FftSourceStateDto> FftSources { get; set; } = [];
     public List<ParameterModStateDto> ParameterModulations { get; set; } = [];
+    public List<ModGraphNodePositionDto> ModGraphNodePositions { get; set; } = [];
 }

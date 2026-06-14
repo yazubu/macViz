@@ -36,6 +36,7 @@ public partial class MinimalGameWindow
     private (ModGraphSourceKind Kind, int Id)? _modGraphLinkStart;
     private int? _modGraphInspectorSocketId;
     private string? _modGraphInspectorNodeKey;
+    private System.Numerics.Vector2 _modGraphCanvasPan = new(24f, 24f);
 
     private void DrawModulationGraphEditor(VisualPipeline visualPipeline)
     {
@@ -44,44 +45,82 @@ public partial class MinimalGameWindow
 
         ImGui.Separator();
         ImGui.Text("Modulation Graph");
-        ImGui.TextDisabled("Violet links: LFO/FFT source → node parameter socket");
+        ImGui.TextDisabled("Violet links: LFO/FFT source → node parameter socket. Pan: right/middle drag or Space+left drag. Drag target node headers to move. Double-click link to disconnect.");
 
         var childHeight = 290f;
-        ImGui.BeginChild("mod_graph_canvas", new System.Numerics.Vector2(0f, childHeight), ImGuiChildFlags.Borders, ImGuiWindowFlags.NoScrollbar);
+        ImGui.BeginChild("mod_graph_canvas", new System.Numerics.Vector2(0f, childHeight), ImGuiChildFlags.Borders, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
 
         var drawList = ImGui.GetWindowDrawList();
         var canvasMin = ImGui.GetCursorScreenPos();
         var canvasSize = ImGui.GetContentRegionAvail();
         var canvasMax = new System.Numerics.Vector2(canvasMin.X + canvasSize.X, canvasMin.Y + canvasSize.Y);
 
+        var io = ImGui.GetIO();
+        var mousePos = io.MousePos;
+        var canvasHovered =
+            ImGui.IsWindowHovered() &&
+            mousePos.X >= canvasMin.X && mousePos.X <= canvasMax.X &&
+            mousePos.Y >= canvasMin.Y && mousePos.Y <= canvasMax.Y;
+
+        if (canvasHovered && _modGraphLinkStart.HasValue && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+        {
+            _modGraphLinkStart = null;
+        }
+
+        var isSpaceDown = ImGui.IsKeyDown(ImGuiKey.Space);
+        var isPanningCanvas = canvasHovered &&
+            (ImGui.IsMouseDragging(ImGuiMouseButton.Right)
+             || ImGui.IsMouseDragging(ImGuiMouseButton.Middle)
+             || (isSpaceDown && ImGui.IsMouseDragging(ImGuiMouseButton.Left)));
+
+        if (isPanningCanvas)
+        {
+            _modGraphCanvasPan.X += io.MouseDelta.X;
+            _modGraphCanvasPan.Y += io.MouseDelta.Y;
+        }
+
         drawList.AddRectFilled(canvasMin, canvasMax, ImGui.GetColorU32(new System.Numerics.Vector4(0.07f, 0.07f, 0.1f, 1f)), 8f);
 
         var sourcePorts = new Dictionary<(ModGraphSourceKind Kind, int Id), System.Numerics.Vector2>();
-        var sourceX = canvasMin.X + 20f;
-        var sourceY = canvasMin.Y + 20f;
+        var drawnLinks = new List<(string NodeKey, int SocketId, System.Numerics.Vector2 Start, System.Numerics.Vector2 C1, System.Numerics.Vector2 C2, System.Numerics.Vector2 End)>();
+        var sourceX = canvasMin.X + 20f + _modGraphCanvasPan.X;
+        var sourceY = canvasMin.Y + 20f + _modGraphCanvasPan.Y;
 
         DrawModGraphSourceColumn(drawList, sourceX, ref sourceY, "LFO", ModGraphSourceKind.Lfo, _lfoEngine.Lfos.Select(x => x.Id), sourcePorts);
         sourceY += 10f;
         DrawModGraphSourceColumn(drawList, sourceX, ref sourceY, "FFT", ModGraphSourceKind.Fft, _fftSources.Select(x => x.Id), sourcePorts);
 
-        var targetBaseX = canvasMin.X + MathF.Max(260f, canvasSize.X * 0.35f);
-        var targetY = canvasMin.Y + 20f;
+        var targetOrigin = new System.Numerics.Vector2(
+            MathF.Max(260f, canvasSize.X * 0.35f),
+            20f);
         var violet = new System.Numerics.Vector4(0.72f, 0.42f, 1f, 1f);
 
         foreach (var target in _modGraphTargets.Values.OrderBy(x => x.Label, StringComparer.Ordinal))
         {
+            ImGui.PushID(target.Key);
             EnsureSocketLayout(target);
 
             var height = 40f + (target.Sockets.Count * 22f);
-            var nodeMin = new System.Numerics.Vector2(targetBaseX, targetY);
-            var nodeMax = new System.Numerics.Vector2(targetBaseX + 360f, targetY + height);
+            var nodeMin = new System.Numerics.Vector2(
+                canvasMin.X + _modGraphCanvasPan.X + targetOrigin.X + target.Position.X,
+                canvasMin.Y + _modGraphCanvasPan.Y + targetOrigin.Y + target.Position.Y);
+            var nodeMax = new System.Numerics.Vector2(nodeMin.X + 360f, nodeMin.Y + height);
             drawList.AddRectFilled(nodeMin, nodeMax, ImGui.GetColorU32(new System.Numerics.Vector4(0.14f, 0.16f, 0.2f, 1f)), 8f);
             drawList.AddRect(nodeMin, nodeMax, ImGui.GetColorU32(new System.Numerics.Vector4(0.35f, 0.4f, 0.5f, 1f)), 8f, ImDrawFlags.None, 1.5f);
             drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 10f, nodeMin.Y + 8f), ImGui.GetColorU32(new System.Numerics.Vector4(1f, 1f, 1f, 1f)), target.Label);
 
+            ImGui.SetCursorScreenPos(new System.Numerics.Vector2(nodeMin.X + 8f, nodeMin.Y + 4f));
+            ImGui.InvisibleButton("target_drag", new System.Numerics.Vector2(344f, 22f));
+            if (!isSpaceDown && ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left))
+            {
+                target.Position.X += io.MouseDelta.X;
+                target.Position.Y += io.MouseDelta.Y;
+            }
+
             for (var i = 0; i < target.Sockets.Count; i++)
             {
                 var socket = target.Sockets[i];
+                ImGui.PushID(socket.Id);
                 var y = nodeMin.Y + 30f + (i * 22f);
                 var socketPos = new System.Numerics.Vector2(nodeMin.X + 10f, y + 6f);
                 var socketColor = socket.IsConnected ? violet : new System.Numerics.Vector4(0.35f, 0.2f, 0.45f, 1f);
@@ -93,7 +132,7 @@ public partial class MinimalGameWindow
                 drawList.AddText(new System.Numerics.Vector2(nodeMin.X + 22f, y), ImGui.GetColorU32(new System.Numerics.Vector4(0.9f, 0.9f, 0.95f, 1f)), label);
 
                 ImGui.SetCursorScreenPos(new System.Numerics.Vector2(socketPos.X - 8f, socketPos.Y - 8f));
-                ImGui.InvisibleButton($"mod_socket_{target.Key}_{socket.Id}", new System.Numerics.Vector2(16f, 16f));
+                ImGui.InvisibleButton("mod_socket", new System.Numerics.Vector2(16f, 16f));
                 if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
                 {
                     if (_modGraphLinkStart.HasValue)
@@ -114,17 +153,28 @@ public partial class MinimalGameWindow
                 if (socket.IsConnected && socket.SourceKind.HasValue && socket.SourceId.HasValue &&
                     sourcePorts.TryGetValue((socket.SourceKind.Value, socket.SourceId.Value), out var sourcePort))
                 {
-                    drawList.AddBezierCubic(
-                        sourcePort,
-                        new System.Numerics.Vector2(sourcePort.X + 70f, sourcePort.Y),
-                        new System.Numerics.Vector2(socketPos.X - 70f, socketPos.Y),
-                        socketPos,
-                        ImGui.GetColorU32(violet),
-                        2f);
+                    var c1 = new System.Numerics.Vector2(sourcePort.X + 70f, sourcePort.Y);
+                    var c2 = new System.Numerics.Vector2(socketPos.X - 70f, socketPos.Y);
+                    drawList.AddBezierCubic(sourcePort, c1, c2, socketPos, ImGui.GetColorU32(violet), 2f);
+                    drawnLinks.Add((target.Key, socket.Id, sourcePort, c1, c2, socketPos));
                 }
+
+                ImGui.PopID();
             }
 
-            targetY += height + 12f;
+            ImGui.PopID();
+        }
+
+        if (canvasHovered && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            if (TryDisconnectModGraphLinkAtMouse(mousePos, drawnLinks))
+            {
+                _modGraphLinkStart = null;
+            }
+            else if (_modGraphLinkStart.HasValue)
+            {
+                _modGraphLinkStart = null;
+            }
         }
 
         if (_modGraphLinkStart.HasValue && sourcePorts.TryGetValue(_modGraphLinkStart.Value, out var previewStart))
@@ -157,6 +207,7 @@ public partial class MinimalGameWindow
 
         foreach (var sourceId in sourceIds)
         {
+            ImGui.PushID($"{groupLabel}_{sourceId}");
             var nodeMin = new System.Numerics.Vector2(x, y);
             var nodeMax = new System.Numerics.Vector2(x + 200f, y + 28f);
             drawList.AddRectFilled(nodeMin, nodeMax, ImGui.GetColorU32(new System.Numerics.Vector4(0.16f, 0.13f, 0.2f, 1f)), 6f);
@@ -168,14 +219,109 @@ public partial class MinimalGameWindow
             sourcePorts[(sourceKind, sourceId)] = output;
 
             ImGui.SetCursorScreenPos(new System.Numerics.Vector2(output.X - 8f, output.Y - 8f));
-            ImGui.InvisibleButton($"mod_src_out_{groupLabel}_{sourceId}", new System.Numerics.Vector2(16f, 16f));
+            ImGui.InvisibleButton("mod_src_out", new System.Numerics.Vector2(16f, 16f));
             if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
             {
                 _modGraphLinkStart = (sourceKind, sourceId);
             }
 
             y += 32f;
+            ImGui.PopID();
         }
+    }
+
+    private bool TryDisconnectModGraphLinkAtMouse(
+        System.Numerics.Vector2 mousePos,
+        IReadOnlyList<(string NodeKey, int SocketId, System.Numerics.Vector2 Start, System.Numerics.Vector2 C1, System.Numerics.Vector2 C2, System.Numerics.Vector2 End)> links)
+    {
+        (string NodeKey, int SocketId)? best = null;
+        var bestDistance = 12f;
+
+        foreach (var link in links)
+        {
+            var distance = ModGraphDistancePointToBezierApprox(mousePos, link.Start, link.C1, link.C2, link.End);
+            if (distance >= bestDistance)
+            {
+                continue;
+            }
+
+            bestDistance = distance;
+            best = (link.NodeKey, link.SocketId);
+        }
+
+        if (!best.HasValue || !_modGraphTargets.TryGetValue(best.Value.NodeKey, out var node))
+        {
+            return false;
+        }
+
+        var socket = node.Sockets.FirstOrDefault(x => x.Id == best.Value.SocketId);
+        if (socket is null)
+        {
+            return false;
+        }
+
+        socket.SourceKind = null;
+        socket.SourceId = null;
+        return true;
+    }
+
+    private static float ModGraphDistancePointToBezierApprox(
+        System.Numerics.Vector2 point,
+        System.Numerics.Vector2 p0,
+        System.Numerics.Vector2 p1,
+        System.Numerics.Vector2 p2,
+        System.Numerics.Vector2 p3)
+    {
+        const int segments = 24;
+        var previous = p0;
+        var minDistance = float.MaxValue;
+
+        for (var i = 1; i <= segments; i++)
+        {
+            var t = i / (float)segments;
+            var current = ModGraphCubicBezierPoint(p0, p1, p2, p3, t);
+            var distance = ModGraphDistancePointToSegment(point, previous, current);
+            if (distance < minDistance)
+            {
+                minDistance = distance;
+            }
+
+            previous = current;
+        }
+
+        return minDistance;
+    }
+
+    private static System.Numerics.Vector2 ModGraphCubicBezierPoint(
+        System.Numerics.Vector2 p0,
+        System.Numerics.Vector2 p1,
+        System.Numerics.Vector2 p2,
+        System.Numerics.Vector2 p3,
+        float t)
+    {
+        var u = 1f - t;
+        var tt = t * t;
+        var uu = u * u;
+        var uuu = uu * u;
+        var ttt = tt * t;
+
+        return (uuu * p0) + (3f * uu * t * p1) + (3f * u * tt * p2) + (ttt * p3);
+    }
+
+    private static float ModGraphDistancePointToSegment(System.Numerics.Vector2 point, System.Numerics.Vector2 a, System.Numerics.Vector2 b)
+    {
+        var ab = b - a;
+        var abLenSq = (ab.X * ab.X) + (ab.Y * ab.Y);
+        if (abLenSq <= 1e-6f)
+        {
+            return (point - a).Length();
+        }
+
+        var ap = point - a;
+        var t = ((ap.X * ab.X) + (ap.Y * ab.Y)) / abLenSq;
+        t = Math.Clamp(t, 0f, 1f);
+        var closest = a + (ab * t);
+        return (point - closest).Length();
     }
 
     private void DrawModGraphInspector()
@@ -200,8 +346,9 @@ public partial class MinimalGameWindow
             return;
         }
 
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(920f, 140f), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowSize(new System.Numerics.Vector2(420f, 0f), ImGuiCond.FirstUseEver);
-        if (!ImGui.Begin($"Mod Link Inspector##{node.Key}_{socket.Id}", ImGuiWindowFlags.AlwaysAutoResize))
+        if (!ImGui.Begin("Mod Link Inspector", ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.End();
             return;
@@ -217,6 +364,7 @@ public partial class MinimalGameWindow
         {
             for (var i = 0; i < node.Parameters.Count; i++)
             {
+                ImGui.PushID(i);
                 var p = node.Parameters[i];
                 var selected = i == selectedParamIndex;
                 var label = ParameterUiHelpers.GetModMatrixParameterLabel(p);
@@ -230,6 +378,8 @@ public partial class MinimalGameWindow
                 {
                     ImGui.SetItemDefaultFocus();
                 }
+
+                ImGui.PopID();
             }
 
             ImGui.EndCombo();
