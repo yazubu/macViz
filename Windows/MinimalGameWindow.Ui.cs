@@ -160,8 +160,15 @@ public partial class MinimalGameWindow
             var activeVisual = _visuals[_selectedVisualIndex];
             if (activeVisual is VisualPipeline visualPipeline && activeVisual is IVisualEditorPanel visualEditorPanel)
             {
-                visualEditorPanel.DrawEditorPanel();
-                DrawModulationGraphEditor(visualPipeline);
+                if (ImGui.CollapsingHeader("Pipeline Graph Editor", ImGuiTreeNodeFlags.DefaultOpen))
+                {
+                    visualEditorPanel.DrawEditorPanel();
+                }
+
+                if (ImGui.CollapsingHeader("Modulation Graph", ImGuiTreeNodeFlags.DefaultOpen))
+                {
+                    DrawModulationGraphEditor(visualPipeline);
+                }
             }
             else
             {

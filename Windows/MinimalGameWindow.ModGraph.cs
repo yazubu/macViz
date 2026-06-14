@@ -43,11 +43,9 @@ public partial class MinimalGameWindow
         EnsureModGraphTargets(visualPipeline);
         SyncPipelineModulationMatricesFromGraph(visualPipeline);
 
-        ImGui.Separator();
-        ImGui.Text("Modulation Graph");
         ImGui.TextDisabled("Violet links: LFO/FFT source → node parameter socket. Pan: right/middle drag or Space+left drag. Drag target node headers to move. Double-click link to disconnect.");
 
-        var childHeight = 290f;
+        var childHeight = 580f;
         ImGui.BeginChild("mod_graph_canvas", new System.Numerics.Vector2(0f, childHeight), ImGuiChildFlags.Borders, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
 
         var drawList = ImGui.GetWindowDrawList();
