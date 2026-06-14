@@ -3,7 +3,7 @@ using OpenTK.Graphics.OpenGL4;
 
 namespace macViz;
 
-public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEditorPanel
+public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
 {
     private const int MaxSnapshots = 8;
     private const int CameraVirtualNodeId = 0;
@@ -14,12 +14,6 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
     private readonly Dictionary<int, int> _nodeOutputTextures = [];
 
     private int _nextNodeId = 1;
-
-    private CameraInput? _cameraInput;
-    private List<int> _deviceIndices = [];
-    private int _selectedDeviceIndex;
-    private string _cameraStatus = "Not initialized";
-    private bool _cameraReinitPending;
 
     private int _quadVao;
     private int _quadVbo;
@@ -165,47 +159,11 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         return false;
     }
 
-    public IReadOnlyList<int> AvailableDeviceIndices => _deviceIndices;
-    public int SelectedDeviceIndex => _selectedDeviceIndex;
-    public string CameraStatus => _cameraStatus;
-
     public VisualPipeline()
     {
-        RefreshDevices();
         CreateGlResources();
 
         BuildDefaultPipeline();
-    }
-
-    public void RefreshDevices()
-    {
-        _deviceIndices = CameraInput.EnumerateDeviceIndices();
-
-        if (_deviceIndices.Count == 0)
-        {
-            _selectedDeviceIndex = 0;
-            _cameraStatus = "No camera devices found";
-            return;
-        }
-
-        if (!_deviceIndices.Contains(_selectedDeviceIndex))
-        {
-            _selectedDeviceIndex = _deviceIndices[0];
-            _cameraReinitPending = true;
-            _cameraStatus = $"Switching to device {_selectedDeviceIndex}...";
-        }
-    }
-
-    public void SetSelectedDeviceIndex(int deviceIndex)
-    {
-        if (_selectedDeviceIndex == deviceIndex)
-        {
-            return;
-        }
-
-        _selectedDeviceIndex = deviceIndex;
-        _cameraReinitPending = true;
-        _cameraStatus = $"Switching to device {_selectedDeviceIndex}...";
     }
 
     public VisualPipelinePresetState CapturePresetState()
@@ -347,7 +305,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         {
             ImGui.SameLine();
             var linkLabel = _linkStartNodeId.Value == CameraVirtualNodeId
-                ? "Camera"
+                ? "None"
                 : GetNodeLabel(_linkStartNodeId.Value);
             ImGui.TextDisabled($"Linking from {linkLabel}...");
             ImGui.SameLine();
@@ -437,8 +395,8 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
     {
         drawList.AddRectFilled(min, max, ImGui.GetColorU32(new System.Numerics.Vector4(0.12f, 0.22f, 0.22f, 0.95f)), 6f);
         drawList.AddRect(min, max, ImGui.GetColorU32(new System.Numerics.Vector4(0.25f, 0.85f, 0.9f, 1f)), 6f, ImDrawFlags.None, 1.6f);
-        drawList.AddText(new System.Numerics.Vector2(min.X + 10f, min.Y + 10f), ImGui.GetColorU32(new System.Numerics.Vector4(1f, 1f, 1f, 1f)), "Camera In");
-        drawList.AddText(new System.Numerics.Vector2(min.X + 10f, min.Y + 34f), ImGui.GetColorU32(new System.Numerics.Vector4(0.75f, 0.95f, 1f, 1f)), "Virtual source");
+        drawList.AddText(new System.Numerics.Vector2(min.X + 10f, min.Y + 10f), ImGui.GetColorU32(new System.Numerics.Vector4(1f, 1f, 1f, 1f)), "None In");
+        drawList.AddText(new System.Numerics.Vector2(min.X + 10f, min.Y + 34f), ImGui.GetColorU32(new System.Numerics.Vector4(0.75f, 0.95f, 1f, 1f)), "Virtual null source");
 
         var output = GetNodeOutputPort(min, max);
         drawList.AddCircleFilled(output, 6f, ImGui.GetColorU32(new System.Numerics.Vector4(0.2f, 0.9f, 1f, 1f)));
@@ -500,7 +458,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
             var cameraStart = new System.Numerics.Vector2(inputPort.X - 130f, inputPort.Y - 18f);
             drawList.AddLine(cameraStart, inputPort, ImGui.GetColorU32(new System.Numerics.Vector4(0.2f, 0.8f, 1f, 0.8f)), 2f);
-            drawList.AddText(new System.Numerics.Vector2(cameraStart.X - 46f, cameraStart.Y - 14f), ImGui.GetColorU32(new System.Numerics.Vector4(0.7f, 0.9f, 1f, 1f)), "CAM");
+            drawList.AddText(new System.Numerics.Vector2(cameraStart.X - 46f, cameraStart.Y - 14f), ImGui.GetColorU32(new System.Numerics.Vector4(0.7f, 0.9f, 1f, 1f)), "NONE");
             return;
         }
 
@@ -921,6 +879,11 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             {
                 ImGui.TextDisabled("Source node: no input");
             }
+
+            if (selected.Stage is CameraSourceStage cameraSourceStage)
+            {
+                DrawCameraSourceInspector(selected.Id, cameraSourceStage);
+            }
         }
         else if (selected.Kind == PipelineNodeKind.Mix)
         {
@@ -937,6 +900,48 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             RemoveNodeAt(selectedIndex);
             _selectedNodeId = null;
         }
+    }
+
+    private void DrawCameraSourceInspector(int nodeId, CameraSourceStage cameraSourceStage)
+    {
+        ImGui.Separator();
+        ImGui.PushID($"camera_source_inspector_{nodeId}");
+        ImGui.Text("Camera Source");
+
+        if (ImGui.Button("Refresh Devices"))
+        {
+            cameraSourceStage.RefreshDevices();
+        }
+
+        if (cameraSourceStage.AvailableDeviceIndices.Count == 0)
+        {
+            ImGui.TextDisabled("No devices found");
+        }
+        else
+        {
+            var selectedLabel = $"Device {cameraSourceStage.SelectedDeviceIndex}";
+            if (ImGui.BeginCombo("Device", selectedLabel))
+            {
+                foreach (var deviceIndex in cameraSourceStage.AvailableDeviceIndices)
+                {
+                    var selected = deviceIndex == cameraSourceStage.SelectedDeviceIndex;
+                    if (ImGui.Selectable($"Device {deviceIndex}", selected))
+                    {
+                        cameraSourceStage.SetSelectedDeviceIndex(deviceIndex);
+                    }
+
+                    if (selected)
+                    {
+                        ImGui.SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+        }
+
+        ImGui.TextDisabled(cameraSourceStage.CameraStatus);
+        ImGui.PopID();
     }
 
     private static System.Numerics.Vector2 GetNodeVisualSize(PipelineNode node)
@@ -998,10 +1003,6 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         GL.Disable(EnableCap.ScissorTest);
         ProcessPendingDisposals();
 
-        HandlePendingCameraReinitialize();
-        EnsureCameraInitialized();
-        _cameraInput?.UpdateTextureFromLatestFrame();
-
         EnsureRenderTargets();
 
         var outputNode = _nodes.FirstOrDefault(x => x.Kind == PipelineNodeKind.Output);
@@ -1015,7 +1016,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             }
         }
 
-        var cameraTexture = _cameraInput?.TextureId ?? 0;
+        const int fallbackTexture = 0;
         var renderedOutputs = new Dictionary<int, int>();
 
         for (var i = 0; i < _nodes.Count; i++)
@@ -1036,20 +1037,15 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             {
                 case PipelineNodeKind.Stage when node.Stage is not null:
                 {
-                    var inputTexture = ResolveNodeInputTexture(node.InputAId, cameraTexture, renderedOutputs, allowCameraFallback: true);
-                    if (node.Stage.IsSourceStage)
-                    {
-                        inputTexture = cameraTexture;
-                    }
-
+                    var inputTexture = ResolveNodeInputTexture(node.InputAId, fallbackTexture, renderedOutputs, allowCameraFallback: true);
                     RenderStageNode(node.Stage, inputTexture, targetTexture, spectrum, time);
                     renderedOutputs[node.Id] = targetTexture;
                     break;
                 }
                 case PipelineNodeKind.Mix when node.MixBox is not null:
                 {
-                    var inputA = ResolveNodeInputTexture(node.InputAId, cameraTexture, renderedOutputs, allowCameraFallback: false);
-                    var inputB = ResolveNodeInputTexture(node.InputBId, cameraTexture, renderedOutputs, allowCameraFallback: false);
+                    var inputA = ResolveNodeInputTexture(node.InputAId, fallbackTexture, renderedOutputs, allowCameraFallback: false);
+                    var inputB = ResolveNodeInputTexture(node.InputBId, fallbackTexture, renderedOutputs, allowCameraFallback: false);
                     RenderMixNode(node.MixBox, inputA, inputB, targetTexture);
                     renderedOutputs[node.Id] = targetTexture;
                     break;
@@ -1057,7 +1053,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
             }
         }
 
-        var finalTexture = ResolveNodeInputTexture(outputNode.InputAId, cameraTexture, renderedOutputs, allowCameraFallback: true);
+        var finalTexture = ResolveNodeInputTexture(outputNode.InputAId, fallbackTexture, renderedOutputs, allowCameraFallback: true);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.Viewport(0, 0, _renderWidth, _renderHeight);
         GL.ClearColor(0f, 0f, 0f, 1f);
@@ -1182,40 +1178,22 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
     {
         var preview = selectedNodeId.HasValue
             ? GetNodeLabel(selectedNodeId.Value)
-            : allowCamera
-                ? "Camera"
-                : "None";
+            : "None";
 
         if (!ImGui.BeginCombo(label, preview))
         {
             return;
         }
 
-        if (allowCamera)
+        var isNone = !selectedNodeId.HasValue;
+        if (ImGui.Selectable("None", isNone))
         {
-            var isCamera = !selectedNodeId.HasValue;
-            if (ImGui.Selectable("Camera", isCamera))
-            {
-                selectedNodeId = null;
-            }
-
-            if (isCamera)
-            {
-                ImGui.SetItemDefaultFocus();
-            }
+            selectedNodeId = null;
         }
-        else
-        {
-            var isNone = !selectedNodeId.HasValue;
-            if (ImGui.Selectable("None", isNone))
-            {
-                selectedNodeId = null;
-            }
 
-            if (isNone)
-            {
-                ImGui.SetItemDefaultFocus();
-            }
+        if (isNone)
+        {
+            ImGui.SetItemDefaultFocus();
         }
 
         for (var i = 0; i < currentNodeIndex; i++)
@@ -1246,7 +1224,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
     {
         if (nodeId == CameraVirtualNodeId)
         {
-            return "Camera";
+            return "None";
         }
 
         var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
@@ -1264,7 +1242,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         };
     }
 
-    private int ResolveNodeInputTexture(int? inputNodeId, int cameraTexture, IReadOnlyDictionary<int, int> renderedOutputs, bool allowCameraFallback)
+    private int ResolveNodeInputTexture(int? inputNodeId, int fallbackTexture, IReadOnlyDictionary<int, int> renderedOutputs, bool allowCameraFallback)
     {
         if (inputNodeId.HasValue && renderedOutputs.TryGetValue(inputNodeId.Value, out var texture))
         {
@@ -1273,7 +1251,7 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
         if (allowCameraFallback)
         {
-            return cameraTexture;
+            return fallbackTexture;
         }
 
         return 0;
@@ -1634,47 +1612,6 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
         _selectedNodeId = _nodes[0].Id;
         _linkStartNodeId = null;
         RebuildParameters();
-    }
-
-    private void HandlePendingCameraReinitialize()
-    {
-        if (!_cameraReinitPending)
-        {
-            return;
-        }
-
-        _cameraInput?.Dispose();
-        _cameraInput = null;
-        _cameraReinitPending = false;
-        _cameraStatus = $"Reinitializing device {_selectedDeviceIndex}...";
-    }
-
-    private void EnsureCameraInitialized()
-    {
-        if (_cameraInput is not null)
-        {
-            return;
-        }
-
-        if (_deviceIndices.Count == 0)
-        {
-            RefreshDevices();
-            if (_deviceIndices.Count == 0)
-            {
-                return;
-            }
-        }
-
-        try
-        {
-            _cameraInput = new CameraInput(_selectedDeviceIndex);
-            _cameraStatus = $"Running (device {_selectedDeviceIndex})";
-        }
-        catch (Exception ex)
-        {
-            _cameraInput = null;
-            _cameraStatus = $"Failed to open device {_selectedDeviceIndex}: {ex.Message}";
-        }
     }
 
     private void EnsureRenderTargets()
@@ -2168,7 +2105,6 @@ public sealed partial class VisualPipeline : IVisual, ICameraVisual, IVisualEdit
 
     public void Dispose()
     {
-        _cameraInput?.Dispose();
         ClearStages(deferDispose: false);
         ProcessPendingDisposals();
 

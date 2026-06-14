@@ -397,6 +397,10 @@ public class MinimalGameWindow : GameWindow
             {
                 DrawCameraControls(cameraVisual);
             }
+            else if (activeVisual is VisualPipeline)
+            {
+                ImGui.TextDisabled("Camera selection is configured per Camera Source node.");
+            }
             else
             {
                 ImGui.TextDisabled("No camera settings for current visual.");
