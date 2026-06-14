@@ -271,6 +271,7 @@ public partial class MinimalGameWindow
         }
 
         SanitizeAudioBinAssignments();
+        RebuildModulationGraphFromAssignments(visualPipeline);
         _pipelinePresetStatus = $"Applied preset '{preset.Name}'.";
     }
 

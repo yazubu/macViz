@@ -853,7 +853,7 @@
       "Pipeline": {
         "Nodes": [
           {
-            "NodeId": 12,
+            "NodeId": 5,
             "NodeKind": "Stage",
             "StageTypeId": "camera.source",
             "InputAId": null,
@@ -869,7 +869,7 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 17,
+            "NodeId": 6,
             "NodeKind": "Stage",
             "StageTypeId": "source.staticImages",
             "InputAId": null,
@@ -891,7 +891,7 @@
             ]
           },
           {
-            "NodeId": 18,
+            "NodeId": 7,
             "NodeKind": "Stage",
             "StageTypeId": "camera.source",
             "InputAId": null,
@@ -907,7 +907,7 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 19,
+            "NodeId": 8,
             "NodeKind": "Stage",
             "StageTypeId": "camera.source",
             "InputAId": null,
@@ -923,22 +923,40 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 20,
+            "NodeId": 14,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.scale",
+            "InputAId": 6,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 362,
+            "PositionY": 385,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Scale Effect / Scale": 1.316,
+              "Scale Effect / Pivot X": 0.5,
+              "Scale Effect / Pivot Y": 0.5
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 9,
             "NodeKind": "Stage",
             "StageTypeId": "effect.signalSwitch",
-            "InputAId": 12,
+            "InputAId": 5,
             "InputBId": null,
             "InputExtraIds": [
-              17,
-              18,
-              19,
+              14,
+              7,
+              8,
               null,
               null,
               null,
               null
             ],
-            "PositionX": 333,
-            "PositionY": 113,
+            "PositionX": 612,
+            "PositionY": 114,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
@@ -948,14 +966,14 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 13,
+            "NodeId": 10,
             "NodeKind": "Stage",
             "StageTypeId": "effect.edgeDetect",
-            "InputAId": 20,
+            "InputAId": 9,
             "InputBId": null,
             "InputExtraIds": [],
-            "PositionX": 735,
-            "PositionY": 153,
+            "PositionX": 952,
+            "PositionY": 154,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 1,
@@ -967,14 +985,14 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 14,
+            "NodeId": 11,
             "NodeKind": "Stage",
             "StageTypeId": "effect.posterize",
-            "InputAId": 13,
+            "InputAId": 10,
             "InputBId": null,
             "InputExtraIds": [],
-            "PositionX": 1056,
-            "PositionY": 155,
+            "PositionX": 1268,
+            "PositionY": 160,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
@@ -985,14 +1003,14 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 15,
+            "NodeId": 12,
             "NodeKind": "Stage",
             "StageTypeId": "effect.edgeDetect",
-            "InputAId": 14,
+            "InputAId": 11,
             "InputBId": null,
             "InputExtraIds": [],
-            "PositionX": 1355,
-            "PositionY": 152,
+            "PositionX": 1317,
+            "PositionY": 426,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 3,
@@ -1004,10 +1022,10 @@
             "SourceImagePaths": []
           },
           {
-            "NodeId": 16,
+            "NodeId": 13,
             "NodeKind": "Output",
             "StageTypeId": null,
-            "InputAId": 15,
+            "InputAId": 12,
             "InputBId": null,
             "InputExtraIds": [],
             "PositionX": 1633,
@@ -1020,7 +1038,7 @@
       },
       "Lfos": [
         {
-          "SourceId": 2,
+          "SourceId": 1,
           "WaveType": 3,
           "Frequency": 1,
           "Phase": 0,
@@ -1029,13 +1047,13 @@
           "SyncSpeedMultiplier": 1
         },
         {
-          "SourceId": 3,
+          "SourceId": 2,
           "WaveType": 0,
           "Frequency": 1,
           "Phase": 0,
           "DutyCycle": 0.5,
           "SyncEnabled": true,
-          "SyncSpeedMultiplier": 0.5
+          "SyncSpeedMultiplier": 0.25
         }
       ],
       "FftSources": [
@@ -1050,12 +1068,12 @@
       ],
       "ParameterModulations": [
         {
-          "ParameterIndex": 23,
+          "ParameterIndex": 6,
           "ParameterName": "Static Images / Trigger",
           "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 2,
+              "SourceId": 1,
               "Scale": 1,
               "Offset": 1
             }
@@ -1063,13 +1081,26 @@
           "FftAssignments": []
         },
         {
-          "ParameterIndex": 33,
+          "ParameterIndex": 16,
           "ParameterName": "Signal Switch / Trigger",
           "InteractionMode": 1,
           "LfoAssignments": [
             {
-              "SourceId": 2,
+              "SourceId": 1,
               "Scale": 1,
+              "Offset": 1
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 36,
+          "ParameterName": "Scale Effect / Scale",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 2,
+              "Scale": 0.14,
               "Offset": 1
             }
           ],

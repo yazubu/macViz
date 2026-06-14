@@ -158,9 +158,10 @@ public partial class MinimalGameWindow
         if (_visuals.Count > 0)
         {
             var activeVisual = _visuals[_selectedVisualIndex];
-            if (activeVisual is IVisualEditorPanel visualEditorPanel)
+            if (activeVisual is VisualPipeline visualPipeline && activeVisual is IVisualEditorPanel visualEditorPanel)
             {
                 visualEditorPanel.DrawEditorPanel();
+                DrawModulationGraphEditor(visualPipeline);
             }
             else
             {
