@@ -55,6 +55,7 @@ public class MinimalGameWindow : GameWindow
         public int Id;
         public int BinCount = 8;
         public float Smoothing = 0.75f;
+        public bool LogarithmicGrouping;
         public bool ExpandVariability;
         public float VariabilityWindowSeconds = 2f;
         public float[] SmoothedBins = new float[8];
@@ -91,6 +92,7 @@ public class MinimalGameWindow : GameWindow
         public int SourceId { get; set; }
         public int BinCount { get; set; } = 8;
         public float Smoothing { get; set; } = 0.75f;
+        public bool LogarithmicGrouping { get; set; }
         public bool ExpandVariability { get; set; }
         public float VariabilityWindowSeconds { get; set; } = 2f;
     }
@@ -243,6 +245,7 @@ public class MinimalGameWindow : GameWindow
             DrawTempoManagementWindow();
             DrawSettingsWindow();
             DrawLfoManagerWindow();
+            DrawFftPreviewWindow();
             DrawModMatrixWindow();
             DrawPipelineWindow();
         }
@@ -410,10 +413,17 @@ public class MinimalGameWindow : GameWindow
         if (_visuals.Count > 0)
         {
             var activeVisual = _visuals[_selectedVisualIndex];
-            DrawAudioModulationControls();
             DrawLfoAssignmentMatrix(activeVisual);
         }
 
+        ImGui.End();
+    }
+
+    private void DrawFftPreviewWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 250), ImGuiCond.FirstUseEver);
+        ImGui.Begin("FFT Preview", ImGuiWindowFlags.AlwaysAutoResize);
+        DrawAudioModulationControls();
         ImGui.End();
     }
 
@@ -484,6 +494,13 @@ public class MinimalGameWindow : GameWindow
                 if (ImGui.SliderFloat("Smoothing", ref smoothing, 0f, 0.99f, "%.2f"))
                 {
                     source.Smoothing = Math.Clamp(smoothing, 0f, 0.99f);
+                }
+
+                var logarithmicGrouping = source.LogarithmicGrouping;
+                if (ImGui.Checkbox("Logarithmic Bin Grouping", ref logarithmicGrouping))
+                {
+                    source.LogarithmicGrouping = logarithmicGrouping;
+                    source.VariabilityHistory.Clear();
                 }
 
                 var expandVariability = source.ExpandVariability;
@@ -726,7 +743,6 @@ public class MinimalGameWindow : GameWindow
 
     private void DrawAudioModulationControls()
     {
-        ImGui.Separator();
         ImGui.Text("Audio Modulation (FFT)");
         ImGui.TextDisabled("Each FFT source has independent bin count and smoothing.");
 
@@ -746,11 +762,29 @@ public class MinimalGameWindow : GameWindow
                 var expandLabel = source.ExpandVariability
                     ? $"On ({source.VariabilityWindowSeconds:F1}s)"
                     : "Off";
-                ImGui.TextDisabled($"Bins: {source.BinCount} | Smoothing: {source.Smoothing:F2} | Expand: {expandLabel}");
-                for (var bin = 0; bin < source.SmoothedBins.Length; bin++)
+                var groupingLabel = source.LogarithmicGrouping ? "Log" : "Linear";
+                ImGui.TextDisabled($"Bins: {source.BinCount} | Smoothing: {source.Smoothing:F2} | Grouping: {groupingLabel} | Expand: {expandLabel}");
+
+                ImGui.PlotHistogram(
+                    "##fftVerticalBars",
+                    ref source.SmoothedBins[0],
+                    source.SmoothedBins.Length,
+                    0,
+                    string.Empty,
+                    0f,
+                    1f,
+                    new System.Numerics.Vector2(320f, 140f));
+
+                if (ImGui.IsItemHovered())
                 {
+                    var mouse = ImGui.GetIO().MousePos;
+                    var min = ImGui.GetItemRectMin();
+                    var max = ImGui.GetItemRectMax();
+                    var width = MathF.Max(1f, max.X - min.X);
+                    var t = Math.Clamp((mouse.X - min.X) / width, 0f, 0.9999f);
+                    var bin = Math.Clamp((int)(t * source.SmoothedBins.Length), 0, source.SmoothedBins.Length - 1);
                     var value = source.SmoothedBins[bin];
-                    ImGui.ProgressBar(value, new System.Numerics.Vector2(140, 0), $"Bin {bin + 1}: {value:F2}");
+                    ImGui.SetTooltip($"Bin {bin + 1}: {value:F2}");
                 }
 
                 ImGui.TreePop();
@@ -1068,6 +1102,7 @@ public class MinimalGameWindow : GameWindow
                 SourceId = fft.Id,
                 BinCount = fft.BinCount,
                 Smoothing = fft.Smoothing,
+                LogarithmicGrouping = fft.LogarithmicGrouping,
                 ExpandVariability = fft.ExpandVariability,
                 VariabilityWindowSeconds = fft.VariabilityWindowSeconds
             });
@@ -1151,6 +1186,7 @@ public class MinimalGameWindow : GameWindow
                 Id = _nextFftSourceId++,
                 BinCount = Math.Clamp(fftState.BinCount, 1, 64),
                 Smoothing = Math.Clamp(fftState.Smoothing, 0f, 0.99f),
+                LogarithmicGrouping = fftState.LogarithmicGrouping,
                 ExpandVariability = fftState.ExpandVariability,
                 VariabilityWindowSeconds = Math.Clamp(fftState.VariabilityWindowSeconds, 0.2f, 10f),
                 SmoothedBins = new float[Math.Clamp(fftState.BinCount, 1, 64)]
@@ -1483,9 +1519,9 @@ public class MinimalGameWindow : GameWindow
                 source.VariabilityHistory.Clear();
             }
 
-            var rawBins = source.BinCount == maxRequestedBins
+            var rawBins = source.BinCount == maxRequestedBins && !source.LogarithmicGrouping
                 ? (float[])maxPrecisionBins.Clone()
-                : AggregateBins(maxPrecisionBins, source.BinCount);
+                : AggregateBins(maxPrecisionBins, source.BinCount, source.LogarithmicGrouping);
 
             var binsForSmoothing = rawBins;
             if (source.ExpandVariability)
@@ -1561,6 +1597,7 @@ public class MinimalGameWindow : GameWindow
             Id = id,
             BinCount = 8,
             Smoothing = 0.75f,
+            LogarithmicGrouping = false,
             ExpandVariability = false,
             VariabilityWindowSeconds = 2f,
             SmoothedBins = new float[8]
@@ -1598,7 +1635,7 @@ public class MinimalGameWindow : GameWindow
         }
     }
 
-    private static float[] AggregateBins(float[] inputBins, int outputBinCount)
+    private static float[] AggregateBins(float[] inputBins, int outputBinCount, bool logarithmicGrouping = false)
     {
         if (outputBinCount <= 0)
         {
@@ -1614,12 +1651,29 @@ public class MinimalGameWindow : GameWindow
 
         for (var outBin = 0; outBin < outputBinCount; outBin++)
         {
-            var start = (outBin * sourceCount) / outputBinCount;
-            var end = ((outBin + 1) * sourceCount) / outputBinCount;
-            if (end <= start)
+            int start;
+            int end;
+
+            if (!logarithmicGrouping)
             {
-                end = Math.Min(sourceCount, start + 1);
+                start = (outBin * sourceCount) / outputBinCount;
+                end = ((outBin + 1) * sourceCount) / outputBinCount;
             }
+            else
+            {
+                const float logBase = 10f;
+                var startT = (float)outBin / outputBinCount;
+                var endT = (float)(outBin + 1) / outputBinCount;
+
+                var mappedStart = (MathF.Pow(logBase, startT) - 1f) / (logBase - 1f);
+                var mappedEnd = (MathF.Pow(logBase, endT) - 1f) / (logBase - 1f);
+
+                start = (int)MathF.Floor(mappedStart * sourceCount);
+                end = (int)MathF.Ceiling(mappedEnd * sourceCount);
+            }
+
+            start = Math.Clamp(start, 0, sourceCount - 1);
+            end = Math.Clamp(end, start + 1, sourceCount);
 
             var sum = 0f;
             var count = 0;
