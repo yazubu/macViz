@@ -39,6 +39,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
     private int? _selectedNodeId;
     private int? _linkStartNodeId;
     private System.Numerics.Vector2 _canvasPan = new(24f, 24f);
+    private float _canvasZoom = 1f;
 
     private static readonly StageFactory[] StageFactories =
     [
@@ -48,6 +49,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         new(SourceVisualStage.ParticleSystemTypeId, "Particle System Source", () => new SourceVisualStage("Particle System", new RotatingParticleSystem3D(), SourceVisualStage.ParticleSystemTypeId)),
         new(SourceVisualStage.CymaticSpiralsTypeId, "Cymatic Spirals Source", () => new SourceVisualStage("Cymatic Spirals", new CymaticSpirals3D(), SourceVisualStage.CymaticSpiralsTypeId)),
         new(SourceVisualStage.DiffusionPaintingTypeId, "Diffusion Painting Source", () => new SourceVisualStage("Diffusion Painting", new DiffusionPainting2D(), SourceVisualStage.DiffusionPaintingTypeId)),
+        new(SignalSwitchStage.TypeIdValue, "Signal Switch", () => new SignalSwitchStage()),
         new(EdgeDetectEffectStage.TypeIdValue, "Edge Detection Effect", () => new EdgeDetectEffectStage()),
         new(SnapshotPeakEffectStage.TypeIdValue, "Snapshot Peak Hold Effect", () => new SnapshotPeakEffectStage()),
         new(FrameFreezeEffectStage.TypeIdValue, "Frame Freeze Effect", () => new FrameFreezeEffectStage()),
@@ -179,6 +181,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
                 NodeKind = node.Kind.ToString(),
                 InputAId = node.InputAId,
                 InputBId = node.InputBId,
+                InputExtraIds = [.. node.InputExtraIds],
                 StageTypeId = node.Stage?.TypeId,
                 PositionX = node.Position.X,
                 PositionY = node.Position.Y
@@ -222,7 +225,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
     {
         ImGui.Separator();
         ImGui.Text("Pipeline Graph Editor");
-        ImGui.TextDisabled("Drag boxes. Click output port then input port to connect. Right-click canvas to pan.");
+        ImGui.TextDisabled("Drag boxes. Click output port then input port to connect. Pan: right/middle drag or Space+left drag. Zoom: Command +/-.");
 
         DrawNodeCreationToolbar();
 
@@ -324,7 +327,6 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         var canvasMax = new System.Numerics.Vector2(canvasPos.X + canvasSize.X, canvasPos.Y + canvasSize.Y);
 
         drawList.AddRectFilled(canvasMin, canvasMax, ImGui.GetColorU32(new System.Numerics.Vector4(0.09f, 0.09f, 0.11f, 1f)));
-        DrawCanvasGrid(drawList, canvasMin, canvasMax);
 
         var mousePos = ImGui.GetIO().MousePos;
         var canvasHovered =
@@ -332,26 +334,50 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             mousePos.X >= canvasMin.X && mousePos.X <= canvasMax.X &&
             mousePos.Y >= canvasMin.Y && mousePos.Y <= canvasMax.Y;
 
+        var io = ImGui.GetIO();
+        if (canvasHovered && io.KeySuper)
+        {
+            var zoomInShortcut = ImGui.IsKeyPressed(ImGuiKey.Equal) || ImGui.IsKeyPressed(ImGuiKey.KeypadAdd);
+            var zoomOutShortcut = ImGui.IsKeyPressed(ImGuiKey.Minus) || ImGui.IsKeyPressed(ImGuiKey.KeypadSubtract);
+            if (zoomInShortcut)
+            {
+                ApplyCanvasZoom(1.12f, canvasMin, mousePos);
+            }
+            else if (zoomOutShortcut)
+            {
+                ApplyCanvasZoom(1f / 1.12f, canvasMin, mousePos);
+            }
+        }
+
+        DrawCanvasGrid(drawList, canvasMin, canvasMax);
+
         if (canvasHovered && _linkStartNodeId.HasValue && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
         {
             _linkStartNodeId = null;
         }
 
-        if (canvasHovered && ImGui.IsMouseDragging(ImGuiMouseButton.Right))
+        var isSpaceDown = ImGui.IsKeyDown(ImGuiKey.Space);
+        var isPanningCanvas = canvasHovered &&
+            (ImGui.IsMouseDragging(ImGuiMouseButton.Right)
+             || ImGui.IsMouseDragging(ImGuiMouseButton.Middle)
+             || (isSpaceDown && ImGui.IsMouseDragging(ImGuiMouseButton.Left)));
+
+        if (isPanningCanvas)
         {
-            var delta = ImGui.GetIO().MouseDelta;
+            var delta = io.MouseDelta;
             _canvasPan.X += delta.X;
             _canvasPan.Y += delta.Y;
         }
 
-        if (canvasHovered && ImGui.IsMouseClicked(ImGuiMouseButton.Left) && !ImGui.GetIO().KeyShift)
+        if (canvasHovered && ImGui.IsMouseClicked(ImGuiMouseButton.Left) && !io.KeyShift && !isSpaceDown)
         {
             _selectedNodeId = null;
         }
 
         var nodeRects = new Dictionary<int, (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)>();
-        var cameraMin = new System.Numerics.Vector2(canvasMin.X + _canvasPan.X - 220f, canvasMin.Y + _canvasPan.Y + 64f);
-        var cameraMax = new System.Numerics.Vector2(cameraMin.X + 150f, cameraMin.Y + 76f);
+        var cameraMin = CanvasToScreen(canvasMin, new System.Numerics.Vector2(-220f, 64f));
+        var cameraSize = new System.Numerics.Vector2(150f * _canvasZoom, 76f * _canvasZoom);
+        var cameraMax = new System.Numerics.Vector2(cameraMin.X + cameraSize.X, cameraMin.Y + cameraSize.Y);
         nodeRects[CameraVirtualNodeId] = (cameraMin, cameraMax);
 
         for (var i = 0; i < _nodes.Count; i++)
@@ -362,8 +388,9 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
                 node.Position = GetAutoNodePosition(i);
             }
 
-            var size = GetNodeVisualSize(node);
-            var min = new System.Numerics.Vector2(canvasMin.X + _canvasPan.X + node.Position.X, canvasMin.Y + _canvasPan.Y + node.Position.Y);
+            var baseSize = GetNodeVisualSize(node);
+            var size = new System.Numerics.Vector2(baseSize.X * _canvasZoom, baseSize.Y * _canvasZoom);
+            var min = CanvasToScreen(canvasMin, node.Position);
             var max = new System.Numerics.Vector2(min.X + size.X, min.Y + size.Y);
             nodeRects[node.Id] = (min, max);
         }
@@ -411,7 +438,12 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
 
     private void DrawCanvasGrid(ImDrawListPtr drawList, System.Numerics.Vector2 min, System.Numerics.Vector2 max)
     {
-        const float gridStep = 32f;
+        var gridStep = 32f * _canvasZoom;
+        if (gridStep < 8f)
+        {
+            return;
+        }
+
         var color = ImGui.GetColorU32(new System.Numerics.Vector4(0.16f, 0.16f, 0.18f, 1f));
 
         var startX = min.X + (_canvasPan.X % gridStep);
@@ -427,6 +459,30 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         }
     }
 
+    private System.Numerics.Vector2 CanvasToScreen(System.Numerics.Vector2 canvasMin, System.Numerics.Vector2 worldPosition)
+    {
+        return new System.Numerics.Vector2(
+            canvasMin.X + _canvasPan.X + (worldPosition.X * _canvasZoom),
+            canvasMin.Y + _canvasPan.Y + (worldPosition.Y * _canvasZoom));
+    }
+
+    private void ApplyCanvasZoom(float factor, System.Numerics.Vector2 canvasMin, System.Numerics.Vector2 pivotScreen)
+    {
+        var oldZoom = _canvasZoom;
+        var newZoom = Math.Clamp(oldZoom * factor, 0.45f, 2.5f);
+        if (Math.Abs(newZoom - oldZoom) < 0.0001f)
+        {
+            return;
+        }
+
+        var worldX = (pivotScreen.X - canvasMin.X - _canvasPan.X) / oldZoom;
+        var worldY = (pivotScreen.Y - canvasMin.Y - _canvasPan.Y) / oldZoom;
+
+        _canvasZoom = newZoom;
+        _canvasPan.X = pivotScreen.X - canvasMin.X - (worldX * _canvasZoom);
+        _canvasPan.Y = pivotScreen.Y - canvasMin.Y - (worldY * _canvasZoom);
+    }
+
     private void DrawNodeConnections(ImDrawListPtr drawList, IReadOnlyDictionary<int, (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> nodeRects)
     {
         foreach (var node in _nodes)
@@ -436,13 +492,12 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
                 continue;
             }
 
-            if (!(node.Kind == PipelineNodeKind.Stage && node.Stage is not null && node.Stage.IsSourceStage))
+            var slotCount = GetNodeInputSlotCount(node);
+            for (var slot = 0; slot < slotCount; slot++)
             {
-                DrawConnectionIntoInputPort(drawList, node.InputAId, nodeRects, GetNodeInputPortA(node, targetRect.Min, targetRect.Max), allowCamera: node.Kind != PipelineNodeKind.Mix);
-                if (node.Kind == PipelineNodeKind.Mix)
-                {
-                    DrawConnectionIntoInputPort(drawList, node.InputBId, nodeRects, GetNodeInputPortB(targetRect.Min, targetRect.Max), allowCamera: false);
-                }
+                var inputId = GetNodeInputIdBySlot(node, slot);
+                var inputPort = GetNodeInputPort(node, targetRect.Min, targetRect.Max, slot, slotCount);
+                DrawConnectionIntoInputPort(drawList, inputId, nodeRects, inputPort, IsCameraAllowedForInputSlot(node, slot));
             }
         }
     }
@@ -476,7 +531,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
     private bool TryRemoveConnectionAtMouse(System.Numerics.Vector2 mousePos, IReadOnlyDictionary<int, (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> nodeRects)
     {
         PipelineNode? bestNode = null;
-        var bestIsSecondInput = false;
+        var bestSlot = -1;
         var bestDistance = 12f;
 
         foreach (var node in _nodes)
@@ -486,45 +541,31 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
                 continue;
             }
 
-            if (node.Kind == PipelineNodeKind.Stage && node.Stage is not null && node.Stage.IsSourceStage)
+            var slotCount = GetNodeInputSlotCount(node);
+            for (var slot = 0; slot < slotCount; slot++)
             {
-                continue;
-            }
-
-            var inputA = GetNodeInputPortA(node, targetRect.Min, targetRect.Max);
-            if (TryGetConnectionDistanceToPoint(node.InputAId, nodeRects, inputA, allowCamera: node.Kind != PipelineNodeKind.Mix, mousePos, out var distanceA) && distanceA < bestDistance)
-            {
-                bestDistance = distanceA;
-                bestNode = node;
-                bestIsSecondInput = false;
-            }
-
-            if (node.Kind == PipelineNodeKind.Mix)
-            {
-                var inputB = GetNodeInputPortB(targetRect.Min, targetRect.Max);
-                if (TryGetConnectionDistanceToPoint(node.InputBId, nodeRects, inputB, allowCamera: false, mousePos, out var distanceB) && distanceB < bestDistance)
+                var inputId = GetNodeInputIdBySlot(node, slot);
+                var inputPort = GetNodeInputPort(node, targetRect.Min, targetRect.Max, slot, slotCount);
+                if (!TryGetConnectionDistanceToPoint(inputId, nodeRects, inputPort, IsCameraAllowedForInputSlot(node, slot), mousePos, out var distance))
                 {
-                    bestDistance = distanceB;
+                    continue;
+                }
+
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
                     bestNode = node;
-                    bestIsSecondInput = true;
+                    bestSlot = slot;
                 }
             }
         }
 
-        if (bestNode is null)
+        if (bestNode is null || bestSlot < 0)
         {
             return false;
         }
 
-        if (bestIsSecondInput)
-        {
-            bestNode.InputBId = null;
-        }
-        else
-        {
-            bestNode.InputAId = null;
-        }
-
+        SetNodeInputIdBySlot(bestNode, bestSlot, null);
         SanitizeNodeConnections();
         return true;
     }
@@ -627,6 +668,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
 
         var details = node.Kind switch
         {
+            PipelineNodeKind.Stage when node.Stage is SignalSwitchStage => "Switch\nIn: 8 Out: 1",
             PipelineNodeKind.Stage when node.Stage is not null && node.Stage.IsSourceStage => "Source\nOut: 1",
             PipelineNodeKind.Stage => "Effect\nIn: 1 Out: 1",
             PipelineNodeKind.Mix => "Mix\nIn: 2 Out: 1",
@@ -637,14 +679,15 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         ImGui.SetCursorScreenPos(min);
         var size = new System.Numerics.Vector2(max.X - min.X, max.Y - min.Y);
         ImGui.InvisibleButton($"node_drag_{node.Id}", size);
-        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left))
+        var isSpaceDown = ImGui.IsKeyDown(ImGuiKey.Space);
+        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left) && !isSpaceDown)
         {
             var delta = ImGui.GetIO().MouseDelta;
-            node.Position.X += delta.X;
-            node.Position.Y += delta.Y;
+            node.Position.X += delta.X / _canvasZoom;
+            node.Position.Y += delta.Y / _canvasZoom;
         }
 
-        if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Left) && !isSpaceDown)
         {
             _selectedNodeId = node.Id;
             if (_linkStartNodeId.HasValue && TryAutoLinkNodeOnSelection(node))
@@ -671,17 +714,11 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             ImGui.EndPopup();
         }
 
-        if (!(node.Kind == PipelineNodeKind.Stage && node.Stage is not null && node.Stage.IsSourceStage))
+        var slotCount = GetNodeInputSlotCount(node);
+        for (var slot = 0; slot < slotCount; slot++)
         {
-            var inputA = GetNodeInputPortA(node, min, max);
-            var allowCameraInput = node.Kind != PipelineNodeKind.Mix;
-            DrawInputPort(nodeIndex, drawList, inputA, node, useSecondInput: false, allowCamera: allowCameraInput);
-        }
-
-        if (node.Kind == PipelineNodeKind.Mix)
-        {
-            var inputB = GetNodeInputPortB(min, max);
-            DrawInputPort(nodeIndex, drawList, inputB, node, useSecondInput: true, allowCamera: false);
+            var inputPort = GetNodeInputPort(node, min, max, slot, slotCount);
+            DrawInputPort(drawList, inputPort, node, slot, IsCameraAllowedForInputSlot(node, slot));
         }
 
         if (node.Kind != PipelineNodeKind.Output)
@@ -691,11 +728,11 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         }
     }
 
-    private void DrawInputPort(int nodeIndex, ImDrawListPtr drawList, System.Numerics.Vector2 portPos, PipelineNode node, bool useSecondInput, bool allowCamera)
+    private void DrawInputPort(ImDrawListPtr drawList, System.Numerics.Vector2 portPos, PipelineNode node, int slotIndex, bool allowCamera)
     {
         drawList.AddCircleFilled(portPos, 6f, ImGui.GetColorU32(new System.Numerics.Vector4(0.25f, 0.85f, 1f, 1f)));
         ImGui.SetCursorScreenPos(new System.Numerics.Vector2(portPos.X - 8f, portPos.Y - 8f));
-        ImGui.InvisibleButton($"port_in_{node.Id}_{(useSecondInput ? 1 : 0)}", new System.Numerics.Vector2(16f, 16f));
+        ImGui.InvisibleButton($"port_in_{node.Id}_{slotIndex}", new System.Numerics.Vector2(16f, 16f));
         if (ImGui.IsItemClicked(ImGuiMouseButton.Left) && _linkStartNodeId.HasValue)
         {
             var sourceId = _linkStartNodeId.Value;
@@ -720,15 +757,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
                 return;
             }
 
-            if (useSecondInput)
-            {
-                node.InputBId = assignment;
-            }
-            else
-            {
-                node.InputAId = assignment;
-            }
-
+            SetNodeInputIdBySlot(node, slotIndex, assignment);
             SanitizeNodeConnections();
         }
     }
@@ -749,7 +778,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         var sourceId = _linkStartNodeId.Value;
         if (sourceId == CameraVirtualNodeId)
         {
-            if (targetNode.Kind == PipelineNodeKind.Mix)
+            if (GetNodeInputSlotCount(targetNode) == 0)
             {
                 return false;
             }
@@ -767,23 +796,22 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         }
 
         var assigned = false;
-        if (targetNode.Kind == PipelineNodeKind.Mix)
+        var slotCount = GetNodeInputSlotCount(targetNode);
+        for (var slot = 0; slot < slotCount; slot++)
         {
-            if (!targetNode.InputAId.HasValue)
+            if (!IsCameraAllowedForInputSlot(targetNode, slot) && !assignment.HasValue)
             {
-                targetNode.InputAId = assignment;
-                assigned = true;
+                continue;
             }
-            else if (!targetNode.InputBId.HasValue)
+
+            if (GetNodeInputIdBySlot(targetNode, slot).HasValue)
             {
-                targetNode.InputBId = assignment;
-                assigned = true;
+                continue;
             }
-        }
-        else if (!targetNode.InputAId.HasValue)
-        {
-            targetNode.InputAId = assignment;
+
+            SetNodeInputIdBySlot(targetNode, slot, assignment);
             assigned = true;
+            break;
         }
 
         if (!assigned)
@@ -831,7 +859,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
 
             foreach (var candidate in _nodes)
             {
-                if (candidate.InputAId == current || candidate.InputBId == current)
+                if (candidate.InputAId == current || candidate.InputBId == current || candidate.InputExtraIds.Any(x => x == current))
                 {
                     stack.Push(candidate.Id);
                 }
@@ -871,7 +899,16 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         var selectedIndex = _nodes.FindIndex(x => x.Id == selected.Id);
         if (selected.Kind == PipelineNodeKind.Stage && selected.Stage is not null)
         {
-            if (!selected.Stage.IsSourceStage)
+            if (selected.Stage is SignalSwitchStage)
+            {
+                for (var slot = 0; slot < SignalSwitchStage.MaxInputs; slot++)
+                {
+                    var inputId = GetNodeInputIdBySlot(selected, slot);
+                    DrawInputNodeSelector($"Input {slot + 1}", selectedIndex, ref inputId, allowCamera: false);
+                    SetNodeInputIdBySlot(selected, slot, inputId);
+                }
+            }
+            else if (!selected.Stage.IsSourceStage)
             {
                 DrawInputNodeSelector("Input", selectedIndex, ref selected.InputAId, allowCamera: true);
             }
@@ -950,6 +987,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         {
             PipelineNodeKind.Output => new System.Numerics.Vector2(220f, 96f),
             PipelineNodeKind.Mix => new System.Numerics.Vector2(240f, 120f),
+            PipelineNodeKind.Stage when node.Stage is SignalSwitchStage => new System.Numerics.Vector2(260f, 248f),
             _ => new System.Numerics.Vector2(240f, 112f)
         };
     }
@@ -959,19 +997,103 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         return new System.Numerics.Vector2(max.X, (min.Y + max.Y) * 0.5f);
     }
 
-    private static System.Numerics.Vector2 GetNodeInputPortA(PipelineNode node, System.Numerics.Vector2 min, System.Numerics.Vector2 max)
+    private static int GetNodeInputSlotCount(PipelineNode node)
     {
-        if (node.Kind == PipelineNodeKind.Mix)
+        if (node.Kind == PipelineNodeKind.Output)
         {
-            return new System.Numerics.Vector2(min.X, min.Y + 42f);
+            return 1;
         }
 
-        return new System.Numerics.Vector2(min.X, (min.Y + max.Y) * 0.5f);
+        if (node.Kind == PipelineNodeKind.Mix)
+        {
+            return 2;
+        }
+
+        if (node.Kind == PipelineNodeKind.Stage)
+        {
+            if (node.Stage is null || node.Stage.IsSourceStage)
+            {
+                return 0;
+            }
+
+            if (node.Stage is SignalSwitchStage)
+            {
+                return SignalSwitchStage.MaxInputs;
+            }
+
+            return 1;
+        }
+
+        return 0;
     }
 
-    private static System.Numerics.Vector2 GetNodeInputPortB(System.Numerics.Vector2 min, System.Numerics.Vector2 max)
+    private static bool IsCameraAllowedForInputSlot(PipelineNode node, int slotIndex)
     {
-        return new System.Numerics.Vector2(min.X, max.Y - 42f);
+        return node.Kind switch
+        {
+            PipelineNodeKind.Mix => false,
+            PipelineNodeKind.Stage when node.Stage is SignalSwitchStage => false,
+            PipelineNodeKind.Stage when node.Stage is not null && node.Stage.IsSourceStage => false,
+            _ => slotIndex == 0
+        };
+    }
+
+    private static int? GetNodeInputIdBySlot(PipelineNode node, int slotIndex)
+    {
+        if (slotIndex <= 0)
+        {
+            return node.InputAId;
+        }
+
+        if (slotIndex == 1 && node.Kind == PipelineNodeKind.Mix)
+        {
+            return node.InputBId;
+        }
+
+        var extraIndex = slotIndex - 1;
+        if (extraIndex >= 0 && extraIndex < node.InputExtraIds.Count)
+        {
+            return node.InputExtraIds[extraIndex];
+        }
+
+        return null;
+    }
+
+    private static void SetNodeInputIdBySlot(PipelineNode node, int slotIndex, int? value)
+    {
+        if (slotIndex <= 0)
+        {
+            node.InputAId = value;
+            return;
+        }
+
+        if (slotIndex == 1 && node.Kind == PipelineNodeKind.Mix)
+        {
+            node.InputBId = value;
+            return;
+        }
+
+        var extraIndex = slotIndex - 1;
+        while (node.InputExtraIds.Count <= extraIndex)
+        {
+            node.InputExtraIds.Add(null);
+        }
+
+        node.InputExtraIds[extraIndex] = value;
+    }
+
+    private static System.Numerics.Vector2 GetNodeInputPort(PipelineNode node, System.Numerics.Vector2 min, System.Numerics.Vector2 max, int slotIndex, int slotCount)
+    {
+        if (slotCount <= 1)
+        {
+            return new System.Numerics.Vector2(min.X, (min.Y + max.Y) * 0.5f);
+        }
+
+        var top = min.Y + 30f;
+        var bottom = max.Y - 30f;
+        var t = slotIndex / (float)(slotCount - 1);
+        var y = top + ((bottom - top) * t);
+        return new System.Numerics.Vector2(min.X, y);
     }
 
     private static System.Numerics.Vector2 GetAutoNodePosition(int index)
@@ -1037,8 +1159,25 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             {
                 case PipelineNodeKind.Stage when node.Stage is not null:
                 {
-                    var inputTexture = ResolveNodeInputTexture(node.InputAId, fallbackTexture, renderedOutputs, allowCameraFallback: true);
-                    RenderStageNode(node.Stage, inputTexture, targetTexture, spectrum, time);
+                    if (node.Stage is SignalSwitchStage signalSwitchStage)
+                    {
+                        EnsureSignalSwitchNodeInputs(node);
+                        var inputIds = new int?[SignalSwitchStage.MaxInputs];
+                        inputIds[0] = node.InputAId;
+                        for (var slot = 1; slot < SignalSwitchStage.MaxInputs; slot++)
+                        {
+                            inputIds[slot] = node.InputExtraIds[slot - 1];
+                        }
+
+                        var switchedInputTexture = signalSwitchStage.SelectInputTexture(inputIds, candidateId => ResolveNodeInputTexture(candidateId, fallbackTexture, renderedOutputs, allowCameraFallback: false));
+                        RenderSignalSwitchNode(switchedInputTexture, targetTexture);
+                    }
+                    else
+                    {
+                        var inputTexture = ResolveNodeInputTexture(node.InputAId, fallbackTexture, renderedOutputs, allowCameraFallback: true);
+                        RenderStageNode(node.Stage, inputTexture, targetTexture, spectrum, time);
+                    }
+
                     renderedOutputs[node.Id] = targetTexture;
                     break;
                 }
@@ -1257,6 +1396,32 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         return 0;
     }
 
+    private static void EnsureSignalSwitchNodeInputs(PipelineNode node)
+    {
+        while (node.InputExtraIds.Count < SignalSwitchStage.MaxInputs - 1)
+        {
+            node.InputExtraIds.Add(null);
+        }
+
+        if (node.InputExtraIds.Count > SignalSwitchStage.MaxInputs - 1)
+        {
+            node.InputExtraIds.RemoveRange(SignalSwitchStage.MaxInputs - 1, node.InputExtraIds.Count - (SignalSwitchStage.MaxInputs - 1));
+        }
+    }
+
+    private void RenderSignalSwitchNode(int selectedTexture, int outputTexture)
+    {
+        AttachTextureToStageFbo(outputTexture);
+        GL.Viewport(0, 0, _renderWidth, _renderHeight);
+        GL.ClearColor(0f, 0f, 0f, 1f);
+        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+        if (selectedTexture != 0)
+        {
+            DrawFullscreen(_blitProgram, selectedTexture);
+        }
+    }
+
     private void RenderStageNode(PipelineStage stage, int inputTexture, int outputTexture, float[] spectrum, float time)
     {
         AttachTextureToStageFbo(_stageTexture);
@@ -1374,6 +1539,23 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             {
                 node.InputBId = null;
             }
+
+            for (var i = 0; i < node.InputExtraIds.Count; i++)
+            {
+                if (node.InputExtraIds[i].HasValue && !liveIds.Contains(node.InputExtraIds[i]!.Value))
+                {
+                    node.InputExtraIds[i] = null;
+                }
+            }
+
+            if (node.Stage is SignalSwitchStage)
+            {
+                EnsureSignalSwitchNodeInputs(node);
+            }
+            else
+            {
+                node.InputExtraIds.Clear();
+            }
         }
 
         EnsureOutputNode();
@@ -1425,6 +1607,17 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             if (node.InputBId.HasValue && ids.Contains(node.InputBId.Value) && node.InputBId.Value != node.Id)
             {
                 adjacency[node.InputBId.Value].Add(node.Id);
+                inDegree[node.Id]++;
+            }
+
+            foreach (var extraInputId in node.InputExtraIds)
+            {
+                if (!extraInputId.HasValue || !ids.Contains(extraInputId.Value) || extraInputId.Value == node.Id)
+                {
+                    continue;
+                }
+
+                adjacency[extraInputId.Value].Add(node.Id);
                 inDegree[node.Id]++;
             }
         }
@@ -1532,6 +1725,11 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
 
             node.InputAId = nodeState.InputAId.HasValue && idMap.TryGetValue(nodeState.InputAId.Value, out var mappedA) ? mappedA : null;
             node.InputBId = nodeState.InputBId.HasValue && idMap.TryGetValue(nodeState.InputBId.Value, out var mappedB) ? mappedB : null;
+            node.InputExtraIds.Clear();
+            foreach (var inputId in nodeState.InputExtraIds)
+            {
+                node.InputExtraIds.Add(inputId.HasValue && idMap.TryGetValue(inputId.Value, out var mappedExtra) ? mappedExtra : null);
+            };
         }
 
         SanitizeNodeConnections();
@@ -2197,6 +2395,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         public MixBoxNode? MixBox;
         public int? InputAId;
         public int? InputBId;
+        public List<int?> InputExtraIds = [];
         public System.Numerics.Vector2 Position;
 
         public IEnumerable<IParameter> GetAllParameters()
@@ -2233,6 +2432,7 @@ public sealed class VisualPipelineNodePresetState
     public string? StageTypeId { get; set; }
     public int? InputAId { get; set; }
     public int? InputBId { get; set; }
+    public List<int?> InputExtraIds { get; set; } = [];
     public float PositionX { get; set; }
     public float PositionY { get; set; }
     public Dictionary<string, float> ParameterValues { get; set; } = [];
