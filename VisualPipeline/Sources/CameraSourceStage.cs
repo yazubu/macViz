@@ -10,7 +10,7 @@ public sealed partial class VisualPipeline
         public override string TypeId => TypeIdValue;
         public override string Name => "Camera Source";
         public override IReadOnlyList<IParameter> Parameters => EmptyParameters;
-        public override bool SupportsInputSelection => false;
+        public override bool IsSourceStage => true;
 
         public override void Render(VisualPipeline host, int inputTexture, float[] spectrum, float time)
         {

@@ -247,7 +247,8 @@ public class MinimalGameWindow : GameWindow
             DrawLfoManagerWindow();
             DrawFftPreviewWindow();
             DrawModMatrixWindow();
-            DrawPipelineWindow();
+            DrawPipelineGraphWindow();
+            DrawPipelinePresetsWindow();
         }
     }
 
@@ -427,10 +428,11 @@ public class MinimalGameWindow : GameWindow
         ImGui.End();
     }
 
-    private void DrawPipelineWindow()
+    private void DrawPipelineGraphWindow()
     {
         ImGui.SetNextWindowPos(new System.Numerics.Vector2(1220, 12), ImGuiCond.FirstUseEver);
-        ImGui.Begin("Pipeline", ImGuiWindowFlags.AlwaysAutoResize);
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(760, 760), ImGuiCond.FirstUseEver);
+        ImGui.Begin("Pipeline Graph Editor");
 
         if (_visuals.Count > 0)
         {
@@ -439,14 +441,31 @@ public class MinimalGameWindow : GameWindow
             {
                 visualEditorPanel.DrawEditorPanel();
             }
+            else
+            {
+                ImGui.TextDisabled("Select 'Visual Pipeline' visual to edit the graph.");
+            }
+        }
 
+        ImGui.End();
+    }
+
+    private void DrawPipelinePresetsWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(1220, 790), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(760, 300), ImGuiCond.FirstUseEver);
+        ImGui.Begin("Pipeline Presets");
+
+        if (_visuals.Count > 0)
+        {
+            var activeVisual = _visuals[_selectedVisualIndex];
             if (activeVisual is VisualPipeline visualPipeline)
             {
                 DrawPipelinePresetManager(visualPipeline);
             }
             else
             {
-                ImGui.TextDisabled("Select 'Visual Pipeline' visual to edit pipeline stages/presets.");
+                ImGui.TextDisabled("Select 'Visual Pipeline' visual to manage presets.");
             }
         }
 
@@ -659,7 +678,7 @@ public class MinimalGameWindow : GameWindow
 
         for (var i = 0; i < visual.Parameters.Count; i++)
         {
-            var sectionName = GetParameterSectionName(visual.Parameters[i].Name);
+            var sectionName = GetParameterSectionName(visual, visual.Parameters[i]);
             if (!sectionMap.TryGetValue(sectionName, out var indices))
             {
                 indices = [];
@@ -703,10 +722,10 @@ public class MinimalGameWindow : GameWindow
 
         var parameterLabel = GetParameterDisplayName(parameter.Name);
         if (visual is VisualPipeline visualPipeline &&
-            IsStageCoreParameter(parameter.Name) &&
-            visualPipeline.TryGetStageDescriptorForParameter(parameter, out var stageNumber, out var stageName))
+            (IsStageCoreParameter(parameter.Name) || parameter.Name.StartsWith("Mix Box / ", StringComparison.Ordinal)) &&
+            visualPipeline.TryGetNodeDescriptorForParameter(parameter, out var nodeLabel))
         {
-            parameterLabel = $"Stage {stageNumber} ({stageName}) / {parameterLabel}";
+            parameterLabel = $"{nodeLabel} / {parameterLabel}";
         }
 
         switch (parameter)
@@ -753,11 +772,17 @@ public class MinimalGameWindow : GameWindow
         return parameterName.StartsWith("Stage / ", StringComparison.Ordinal);
     }
 
-    private static string GetParameterSectionName(string parameterName)
+    private static string GetParameterSectionName(IVisual visual, IParameter parameter)
     {
+        if (visual is VisualPipeline visualPipeline &&
+            visualPipeline.TryGetNodeDescriptorForParameter(parameter, out var nodeLabel))
+        {
+            return nodeLabel;
+        }
+
         const string separator = " / ";
-        var separatorIndex = parameterName.IndexOf(separator, StringComparison.Ordinal);
-        return separatorIndex > 0 ? parameterName[..separatorIndex] : "General";
+        var separatorIndex = parameter.Name.IndexOf(separator, StringComparison.Ordinal);
+        return separatorIndex > 0 ? parameter.Name[..separatorIndex] : "General";
     }
 
     private static string GetParameterDisplayName(string parameterName)
@@ -1076,28 +1101,21 @@ public class MinimalGameWindow : GameWindow
     private static string GetModMatrixSectionName(IVisual visual, IParameter parameter)
     {
         if (visual is VisualPipeline visualPipeline &&
-            visualPipeline.TryGetStageDescriptorForParameter(parameter, out var stageNumber, out var stageName))
+            visualPipeline.TryGetNodeDescriptorForParameter(parameter, out var nodeLabel))
         {
-            return $"Stage {stageNumber} ({stageName})";
+            return nodeLabel;
         }
 
-        return GetParameterSectionName(parameter.Name);
+        return GetParameterSectionName(visual, parameter);
     }
 
     private static string GetModMatrixParameterLabel(IVisual visual, IParameter parameter)
     {
-        if (visual is VisualPipeline)
-        {
-            return GetParameterDisplayName(parameter.Name);
-        }
-
         return GetParameterDisplayName(parameter.Name);
     }
 
     private void DrawPipelinePresetManager(VisualPipeline visualPipeline)
     {
-        ImGui.Separator();
-        ImGui.Text("Pipeline Presets");
 
         ImGui.SetNextItemWidth(420);
         ImGui.InputText("Preset File", ref _pipelinePresetFilePath, 512);
