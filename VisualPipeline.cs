@@ -38,12 +38,14 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
     private int _newNodeKindIndex;
     private int? _selectedNodeId;
     private int? _linkStartNodeId;
+    private readonly Dictionary<int, string> _staticImagePathDraftByNode = [];
     private System.Numerics.Vector2 _canvasPan = new(24f, 24f);
     private float _canvasZoom = 1f;
 
     private static readonly StageFactory[] StageFactories =
     [
         new(CameraSourceStage.TypeIdValue, "Camera Source", () => new CameraSourceStage()),
+        new(StaticImageSourceStage.TypeIdValue, "Static Images Source", () => new StaticImageSourceStage()),
         new(SourceVisualStage.RotatingCubeTypeId, "Rotating Cube Source", () => new SourceVisualStage("Rotating Cube", new RotatingCube3D(), SourceVisualStage.RotatingCubeTypeId)),
         new(SourceVisualStage.SpectrumBarsTypeId, "Spectrum Bars Source", () => new SourceVisualStage("Spectrum Bars", new SpectrumBars2d(), SourceVisualStage.SpectrumBarsTypeId)),
         new(SourceVisualStage.ParticleSystemTypeId, "Particle System Source", () => new SourceVisualStage("Particle System", new RotatingParticleSystem3D(), SourceVisualStage.ParticleSystemTypeId)),
@@ -53,6 +55,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         new(EdgeDetectEffectStage.TypeIdValue, "Edge Detection Effect", () => new EdgeDetectEffectStage()),
         new(SnapshotPeakEffectStage.TypeIdValue, "Snapshot Peak Hold Effect", () => new SnapshotPeakEffectStage()),
         new(FrameFreezeEffectStage.TypeIdValue, "Frame Freeze Effect", () => new FrameFreezeEffectStage()),
+        new(FlipEffectStage.TypeIdValue, "Flip Effect", () => new FlipEffectStage()),
         new(ScaleEffectStage.TypeIdValue, "Scale Effect", () => new ScaleEffectStage()),
         new(ColorShiftEffectStage.TypeIdValue, "Color Shift Effect", () => new ColorShiftEffectStage()),
         new(PixelateEffectStage.TypeIdValue, "Pixelate Effect", () => new PixelateEffectStage()),
@@ -190,6 +193,11 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             foreach (var parameter in node.GetAllParameters())
             {
                 nodeState.ParameterValues[parameter.Name] = GetParameterNumericValue(parameter);
+            }
+
+            if (node.Stage is StaticImageSourceStage staticImageSourceStage)
+            {
+                nodeState.SourceImagePaths = [.. staticImageSourceStage.ImagePaths];
             }
 
             state.Nodes.Add(nodeState);
@@ -921,6 +929,10 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             {
                 DrawCameraSourceInspector(selected.Id, cameraSourceStage);
             }
+            else if (selected.Stage is StaticImageSourceStage staticImageSourceStage)
+            {
+                DrawStaticImageSourceInspector(selected.Id, staticImageSourceStage);
+            }
         }
         else if (selected.Kind == PipelineNodeKind.Mix)
         {
@@ -978,6 +990,109 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         }
 
         ImGui.TextDisabled(cameraSourceStage.CameraStatus);
+        ImGui.PopID();
+    }
+
+    private void DrawStaticImageSourceInspector(int nodeId, StaticImageSourceStage staticImageSourceStage)
+    {
+        ImGui.Separator();
+        ImGui.PushID($"static_image_source_inspector_{nodeId}");
+        ImGui.Text("Static Images Source");
+
+        var draftPath = _staticImagePathDraftByNode.TryGetValue(nodeId, out var currentDraft) ? currentDraft : string.Empty;
+        ImGui.SetNextItemWidth(-1f);
+        ImGui.InputText("Path (file or folder)", ref draftPath, 1024);
+        _staticImagePathDraftByNode[nodeId] = draftPath;
+
+        if (ImGui.Button("Add"))
+        {
+            var added = 0;
+            var pathCandidates = draftPath
+                .Split(['\n', '\r', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+            if (pathCandidates.Length == 0)
+            {
+                added += staticImageSourceStage.AddImagesFromPath(draftPath);
+            }
+            else
+            {
+                foreach (var pathCandidate in pathCandidates)
+                {
+                    added += staticImageSourceStage.AddImagesFromPath(pathCandidate);
+                }
+            }
+
+            if (added > 0)
+            {
+                _staticImagePathDraftByNode[nodeId] = string.Empty;
+            }
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Pick Files…"))
+        {
+            var files = NativeFilePicker.PickImageFiles();
+            var added = 0;
+            foreach (var file in files)
+            {
+                added += staticImageSourceStage.AddImagesFromPath(file);
+            }
+
+            if (added > 0)
+            {
+                _staticImagePathDraftByNode[nodeId] = string.Empty;
+            }
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Pick Folder…"))
+        {
+            var folder = NativeFilePicker.PickFolder();
+            if (!string.IsNullOrWhiteSpace(folder))
+            {
+                staticImageSourceStage.AddImagesFromPath(folder);
+            }
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Clear All"))
+        {
+            staticImageSourceStage.ClearImages();
+        }
+
+        ImGui.Text($"Loaded: {staticImageSourceStage.ImagePaths.Count}");
+        ImGui.TextDisabled(staticImageSourceStage.Status);
+
+        var selectedImageIndex = staticImageSourceStage.SelectedImageIndex;
+        if (ImGui.BeginListBox("##static_images", new System.Numerics.Vector2(-1f, 130f)))
+        {
+            for (var i = 0; i < staticImageSourceStage.ImagePaths.Count; i++)
+            {
+                var imagePath = staticImageSourceStage.ImagePaths[i];
+                var isSelected = i == selectedImageIndex;
+                if (ImGui.Selectable($"{i + 1}. {Path.GetFileName(imagePath)}", isSelected))
+                {
+                    staticImageSourceStage.SetSelectedImageIndex(i);
+                }
+
+                if (isSelected)
+                {
+                    ImGui.SetItemDefaultFocus();
+                }
+            }
+
+            ImGui.EndListBox();
+        }
+
+        if (selectedImageIndex >= 0 && selectedImageIndex < staticImageSourceStage.ImagePaths.Count)
+        {
+            ImGui.TextWrapped(staticImageSourceStage.ImagePaths[selectedImageIndex]);
+            if (ImGui.Button("Remove Selected"))
+            {
+                staticImageSourceStage.RemoveImageAt(selectedImageIndex);
+            }
+        }
+
         ImGui.PopID();
     }
 
@@ -1507,6 +1622,8 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             _nodeOutputTextures.Remove(node.Id);
         }
 
+        _staticImagePathDraftByNode.Remove(node.Id);
+
         if (_selectedNodeId == node.Id)
         {
             _selectedNodeId = null;
@@ -1709,6 +1826,11 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
                 {
                     SetParameterNumericValue(parameter, numericValue);
                 }
+            }
+
+            if (node.Stage is StaticImageSourceStage staticImageSourceStage && nodeState.SourceImagePaths.Count > 0)
+            {
+                staticImageSourceStage.SetImagePaths(nodeState.SourceImagePaths);
             }
 
             _nodes.Add(node);
@@ -1930,7 +2052,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             }
             """;
 
-        const string blitFlipFragment = """
+        const string blitFlipYFragment = """
             #version 330 core
             in vec2 vUv;
             out vec4 fragColor;
@@ -1942,7 +2064,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             """;
 
         _blitProgram = CompileProgram(vertexSource, blitFragment);
-        _blitProgramFlipY = CompileProgram(vertexSource, blitFlipFragment);
+        _blitProgramFlipY = CompileProgram(vertexSource, blitFlipYFragment);
 
         GL.UseProgram(_blitProgram);
         GL.Uniform1(GL.GetUniformLocation(_blitProgram, "uTexture"), 0);
@@ -2259,6 +2381,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         }
 
         _nodeOutputTextures.Clear();
+        _staticImagePathDraftByNode.Clear();
         _selectedNodeId = null;
         _linkStartNodeId = null;
     }
@@ -2436,6 +2559,7 @@ public sealed class VisualPipelineNodePresetState
     public float PositionX { get; set; }
     public float PositionY { get; set; }
     public Dictionary<string, float> ParameterValues { get; set; } = [];
+    public List<string> SourceImagePaths { get; set; } = [];
 }
 
 public sealed class VisualPipelineStagePresetState

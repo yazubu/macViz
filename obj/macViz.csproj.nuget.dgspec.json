@@ -64,6 +64,10 @@
               "target": "Package",
               "version": "[4.9.4, )"
             },
+            "StbImageSharp": {
+              "target": "Package",
+              "version": "[2.30.15, )"
+            },
             "Twizzle.ImGui-Bundle.NET": {
               "target": "Package",
               "version": "[1.91.5.2, )"

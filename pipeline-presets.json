@@ -569,12 +569,14 @@
             "StageTypeId": "camera.source",
             "InputAId": null,
             "InputBId": null,
+            "InputExtraIds": [],
             "PositionX": 40,
             "PositionY": 80,
             "ParameterValues": {
               "Stage / Mix": 1,
               "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0
-            }
+            },
+            "SourceImagePaths": []
           },
           {
             "NodeId": 2,
@@ -582,6 +584,7 @@
             "StageTypeId": "effect.edgeDetect",
             "InputAId": 1,
             "InputBId": null,
+            "InputExtraIds": [],
             "PositionX": 360,
             "PositionY": 80,
             "ParameterValues": {
@@ -591,7 +594,8 @@
               "Edge Effect / Threshold": 0.25,
               "Edge Effect / Mix": 1,
               "Edge Effect / Invert": 0
-            }
+            },
+            "SourceImagePaths": []
           },
           {
             "NodeId": 3,
@@ -599,6 +603,7 @@
             "StageTypeId": "effect.snapshotPeak",
             "InputAId": 2,
             "InputBId": null,
+            "InputExtraIds": [],
             "PositionX": 680,
             "PositionY": 80,
             "ParameterValues": {
@@ -612,7 +617,8 @@
               "Snapshot Effect / Opacity": 1,
               "Snapshot Effect / Opacity Drop": 0.2,
               "Snapshot Effect / Mix": 1
-            }
+            },
+            "SourceImagePaths": []
           },
           {
             "NodeId": 5,
@@ -620,6 +626,7 @@
             "StageTypeId": "source.particleSystem",
             "InputAId": null,
             "InputBId": null,
+            "InputExtraIds": [],
             "PositionX": 19,
             "PositionY": 224,
             "ParameterValues": {
@@ -631,7 +638,8 @@
               "Radius": 1.1,
               "PointSize": 4,
               "ColorIntensity": 1
-            }
+            },
+            "SourceImagePaths": []
           },
           {
             "NodeId": 6,
@@ -639,12 +647,14 @@
             "StageTypeId": null,
             "InputAId": 3,
             "InputBId": 5,
+            "InputExtraIds": [],
             "PositionX": 751,
             "PositionY": 260,
             "ParameterValues": {
               "Mix Box / Mix": 1,
               "Mix Box / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0
-            }
+            },
+            "SourceImagePaths": []
           },
           {
             "NodeId": 7,
@@ -652,6 +662,7 @@
             "StageTypeId": "effect.chromaticSmear",
             "InputAId": 5,
             "InputBId": null,
+            "InputExtraIds": [],
             "PositionX": 330,
             "PositionY": 342,
             "ParameterValues": {
@@ -665,7 +676,8 @@
               "Chromatic Smear / Fresh Mix": 0.16,
               "Chromatic Smear / Smear Amount": 1,
               "Chromatic Smear / Mix": 1
-            }
+            },
+            "SourceImagePaths": []
           },
           {
             "NodeId": 4,
@@ -673,9 +685,11 @@
             "StageTypeId": null,
             "InputAId": 6,
             "InputBId": null,
+            "InputExtraIds": [],
             "PositionX": 1000,
             "PositionY": 94,
-            "ParameterValues": {}
+            "ParameterValues": {},
+            "SourceImagePaths": []
           }
         ],
         "Stages": []
@@ -692,6 +706,376 @@
         }
       ],
       "ParameterModulations": []
+    },
+    {
+      "Name": "Test2",
+      "Pipeline": {
+        "Nodes": [
+          {
+            "NodeId": 1,
+            "NodeKind": "Stage",
+            "StageTypeId": "camera.source",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 40,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Camera Source / Device Index": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 2,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.edgeDetect",
+            "InputAId": 1,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 360,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Edge Effect / Strength": 1.4,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 3,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.snapshotPeak",
+            "InputAId": 2,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 680,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Snapshot Effect / Signal": 0,
+              "Snapshot Effect / Peak Threshold": 0.8,
+              "Snapshot Effect / Min Interval (s)": 0.2,
+              "Snapshot Effect / Hold Time (s)": 2.5,
+              "Snapshot Effect / Count": 8,
+              "Snapshot Effect / Opacity": 1,
+              "Snapshot Effect / Opacity Drop": 0.2,
+              "Snapshot Effect / Mix": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 5,
+            "NodeKind": "Stage",
+            "StageTypeId": "source.staticImages",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": -2,
+            "PositionY": 262,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Static Images / Algorithm (0 Order,1 Order Inv,2 Random,3 Random EX)": 0,
+              "Static Images / Trigger": 0
+            },
+            "SourceImagePaths": [
+              "/Users/yazzi/Documents/Images/bret-kavanaugh-_af0_qAh4K4-unsplash.jpg"
+            ]
+          },
+          {
+            "NodeId": 6,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.flip",
+            "InputAId": 5,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 366,
+            "PositionY": 202,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Flip Effect / Flip X": 1,
+              "Flip Effect / Flip Y": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 7,
+            "NodeKind": "Mix",
+            "StageTypeId": null,
+            "InputAId": 6,
+            "InputBId": 5,
+            "InputExtraIds": [],
+            "PositionX": 711,
+            "PositionY": 268,
+            "ParameterValues": {
+              "Mix Box / Mix": 1,
+              "Mix Box / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 4,
+            "NodeKind": "Output",
+            "StageTypeId": null,
+            "InputAId": 7,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 1000,
+            "PositionY": 94,
+            "ParameterValues": {},
+            "SourceImagePaths": []
+          }
+        ],
+        "Stages": []
+      },
+      "Lfos": [],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 8,
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
+        }
+      ],
+      "ParameterModulations": []
+    },
+    {
+      "Name": "MultiCamera and static show",
+      "Pipeline": {
+        "Nodes": [
+          {
+            "NodeId": 12,
+            "NodeKind": "Stage",
+            "StageTypeId": "camera.source",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": -20,
+            "PositionY": -9,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Camera Source / Device Index": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 17,
+            "NodeKind": "Stage",
+            "StageTypeId": "source.staticImages",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": -22,
+            "PositionY": 107,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Static Images / Algorithm (0 Order,1 Order Inv,2 Random,3 Random EX)": 2,
+              "Static Images / Trigger": 0.387
+            },
+            "SourceImagePaths": [
+              "/Users/yazzi/Documents/Images/bret-kavanaugh-_af0_qAh4K4-unsplash.jpg",
+              "/Users/yazzi/Documents/Images/nahid-hatami--S4OsO0c6Ts-unsplash.jpg",
+              "/Users/yazzi/Documents/Images/patrycja-chociej-3IDt_iopYHs-unsplash.jpg",
+              "/Users/yazzi/Documents/Images/Psychedelic_eye.jpg"
+            ]
+          },
+          {
+            "NodeId": 18,
+            "NodeKind": "Stage",
+            "StageTypeId": "camera.source",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": -24,
+            "PositionY": 223,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Camera Source / Device Index": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 19,
+            "NodeKind": "Stage",
+            "StageTypeId": "camera.source",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": -25,
+            "PositionY": 338,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Camera Source / Device Index": 2
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 20,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.signalSwitch",
+            "InputAId": 12,
+            "InputBId": null,
+            "InputExtraIds": [
+              17,
+              18,
+              19,
+              null,
+              null,
+              null,
+              null
+            ],
+            "PositionX": 333,
+            "PositionY": 113,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Signal Switch / Algorithm (0 Order,1 Order Inv,2 Random,3 Random EX)": 0,
+              "Signal Switch / Trigger": 0.279
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 13,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.edgeDetect",
+            "InputAId": 20,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 735,
+            "PositionY": 153,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 1,
+              "Edge Effect / Strength": 1.4,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 14,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.posterize",
+            "InputAId": 13,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 1056,
+            "PositionY": 155,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Posterize Effect / Levels": 2,
+              "Posterize Effect / Gamma": 1,
+              "Posterize Effect / Mix": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 15,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.edgeDetect",
+            "InputAId": 14,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 1355,
+            "PositionY": 152,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 3,
+              "Edge Effect / Strength": 1.596,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 16,
+            "NodeKind": "Output",
+            "StageTypeId": null,
+            "InputAId": 15,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 1633,
+            "PositionY": 293,
+            "ParameterValues": {},
+            "SourceImagePaths": []
+          }
+        ],
+        "Stages": []
+      },
+      "Lfos": [
+        {
+          "SourceId": 2,
+          "WaveType": 3,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 3,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 0.5
+        }
+      ],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 16,
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
+        }
+      ],
+      "ParameterModulations": [
+        {
+          "ParameterIndex": 23,
+          "ParameterName": "Static Images / Trigger",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 2,
+              "Scale": 1,
+              "Offset": 1
+            }
+          ],
+          "FftAssignments": []
+        },
+        {
+          "ParameterIndex": 33,
+          "ParameterName": "Signal Switch / Trigger",
+          "InteractionMode": 1,
+          "LfoAssignments": [
+            {
+              "SourceId": 2,
+              "Scale": 1,
+              "Offset": 1
+            }
+          ],
+          "FftAssignments": []
+        }
+      ]
     }
   ]
 }

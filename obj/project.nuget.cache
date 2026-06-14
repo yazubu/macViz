@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "cC+u7+yxgr0=",
+  "dgSpecHash": "Cryk2I4Bhkk=",
   "success": true,
   "projectFilePath": "/Users/yazzi/projects/macViz/macViz.csproj",
   "expectedPackageFiles": [
@@ -20,6 +20,7 @@
     "/Users/yazzi/.nuget/packages/opentk.windowing.common/4.9.4/opentk.windowing.common.4.9.4.nupkg.sha512",
     "/Users/yazzi/.nuget/packages/opentk.windowing.desktop/4.9.4/opentk.windowing.desktop.4.9.4.nupkg.sha512",
     "/Users/yazzi/.nuget/packages/opentk.windowing.graphicslibraryframework/4.9.4/opentk.windowing.graphicslibraryframework.4.9.4.nupkg.sha512",
+    "/Users/yazzi/.nuget/packages/stbimagesharp/2.30.15/stbimagesharp.2.30.15.nupkg.sha512",
     "/Users/yazzi/.nuget/packages/twizzle.imgui-bundle.net/1.91.5.2/twizzle.imgui-bundle.net.1.91.5.2.nupkg.sha512"
   ],
   "logs": []
