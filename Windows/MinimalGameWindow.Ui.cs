@@ -106,6 +106,37 @@ public partial class MinimalGameWindow
         ImGui.End();
     }
 
+    private void DrawCameraSettingsWindow()
+    {
+        ImGui.SetNextWindowPos(new System.Numerics.Vector2(12, 320), ImGuiCond.FirstUseEver);
+        ImGui.Begin("Settings", ImGuiWindowFlags.AlwaysAutoResize);
+
+        ImGui.Text("Camera Sources");
+        if (ImGui.Button("Refresh Camera Devices"))
+        {
+            CameraSourceRegistry.RefreshDevicesAndWarmup();
+        }
+
+        var availableDevices = CameraSourceRegistry.GetAvailableDeviceIndices();
+        if (availableDevices.Count == 0)
+        {
+            ImGui.TextDisabled("No camera devices detected.");
+        }
+        else
+        {
+            foreach (var deviceIndex in availableDevices)
+            {
+                var enabled = CameraSourceRegistry.IsDeviceEnabled(deviceIndex);
+                if (ImGui.Checkbox($"Device {deviceIndex}", ref enabled))
+                {
+                    CameraSourceRegistry.SetDeviceEnabled(deviceIndex, enabled);
+                }
+            }
+        }
+
+        ImGui.End();
+    }
+
     private void DrawModMatrixWindow()
     {
         ImGui.SetNextWindowPos(new System.Numerics.Vector2(320, 360), ImGuiCond.FirstUseEver);

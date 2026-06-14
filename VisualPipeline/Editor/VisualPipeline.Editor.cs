@@ -449,6 +449,14 @@ public sealed partial class VisualPipeline
         drawList.AddRect(min, max, ImGui.GetColorU32(isSelected ? new System.Numerics.Vector4(1f, 0.9f, 0.3f, 1f) : new System.Numerics.Vector4(0.45f, 0.5f, 0.6f, 1f)), 6f, ImDrawFlags.None, isSelected ? 2.5f : 1.2f);
         drawList.AddText(new System.Numerics.Vector2(min.X + 10f, min.Y + 8f), ImGui.GetColorU32(new System.Numerics.Vector4(1f, 1f, 1f, 1f)), GetNodeLabel(node));
 
+        if (node.Stage is CameraSourceStage cameraStage && cameraStage.HasDeviceWarning)
+        {
+            drawList.AddText(
+                new System.Numerics.Vector2(max.X - 18f, min.Y + 8f),
+                ImGui.GetColorU32(new System.Numerics.Vector4(1f, 0.75f, 0.2f, 1f)),
+                "!");
+        }
+
         var details = node.Kind switch
         {
             PipelineNodeKind.Stage when node.Stage is SignalSwitchStage => "Switch\nIn: 8 Out: 1",
@@ -765,6 +773,11 @@ public sealed partial class VisualPipeline
         }
 
         ImGui.TextDisabled(cameraSourceStage.CameraStatus);
+        if (cameraSourceStage.HasDeviceWarning)
+        {
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.75f, 0.2f, 1f), $"! {cameraSourceStage.DeviceWarning}");
+        }
+
         ImGui.PopID();
     }
 

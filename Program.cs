@@ -77,6 +77,8 @@ public partial class MinimalGameWindow : GameWindow
         GL.ClearColor(new Color4(0f, 0f, 0.2f, 1f));
         GL.Viewport(0, 0, FramebufferSize.X, FramebufferSize.Y);
 
+        CameraSourceRegistry.Initialize(warmupEnabledSources: true);
+
         _visuals.Add(new SpectrumBars2d());
         _visuals.Add(new RotatingCube3D());
         _visuals.Add(new RotatingParticleSystem3D());
@@ -155,6 +157,7 @@ public partial class MinimalGameWindow : GameWindow
             DrawParametersWindow();
             DrawVisualParametersWindow();
             DrawTempoManagementWindow();
+            DrawCameraSettingsWindow();
             DrawPipelineGraphWindow();
             DrawPipelinePresetsWindow();
         }
@@ -217,6 +220,7 @@ public partial class MinimalGameWindow : GameWindow
             visual.Dispose();
         }
 
+        CameraSourceRegistry.DisposeAll();
         base.OnUnload();
     }
 }
