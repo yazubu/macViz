@@ -399,6 +399,14 @@ public partial class MinimalGameWindow
                     }
                 }
 
+                var phaseShift = lfo.Phase;
+                if (ImGui.SliderFloat("Phase Shift", ref phaseShift, 0f, 1f, "%.3f"))
+                {
+                    lfo.Phase = phaseShift;
+                }
+                ImGui.SameLine();
+                ImGui.TextDisabled($"({phaseShift * 360f:F0}°)");
+
                 if (lfo.WaveType == LfoWaveType.PWM)
                 {
                     var duty = lfo.DutyCycle;

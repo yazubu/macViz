@@ -20,6 +20,10 @@ public partial class MinimalGameWindow : GameWindow
     private bool _preferAbletonLink = true;
     private static readonly (string Label, float Multiplier)[] SyncSpeedOptions =
     [
+        ("1:64", 1f / 64f),
+        ("1:32", 1f / 32f),
+        ("1:16", 1f / 16f),
+        ("1:8", 1f / 8f),
         ("1:4", 0.25f),
         ("1:2", 0.5f),
         ("1:1", 1f),
