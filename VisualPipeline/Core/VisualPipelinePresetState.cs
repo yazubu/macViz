@@ -19,6 +19,11 @@ public sealed class VisualPipelineNodePresetState
     public Dictionary<string, float> ParameterValues { get; set; } = [];
     public List<string> SourceImagePaths { get; set; } = [];
     public string? RecorderOutputDirectory { get; set; }
+    public float? RecorderTrigger { get; set; }
+    public float? RecorderFps { get; set; }
+    public int? RecorderCompress { get; set; }
+    public int? RecorderCrf { get; set; }
+    public int? RecorderPreset { get; set; }
 }
 
 public sealed class VisualPipelineStagePresetState

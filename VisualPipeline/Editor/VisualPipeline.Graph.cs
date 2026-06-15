@@ -306,7 +306,6 @@ public sealed partial class VisualPipeline
         }
 
         _staticImagePathDraftByNode.Remove(node.Id);
-        _recorderOutputPathDraftByNode.Remove(node.Id);
 
         if (_selectedNodeId == node.Id)
         {
@@ -464,6 +463,13 @@ public sealed partial class VisualPipeline
     private void ApplyGraphPresetState(VisualPipelinePresetState state)
     {
         ClearStages(deferDispose: true);
+        _outputRecorderTrigger.Value = 0f;
+        _outputRecorderFps.Value = 30f;
+        _outputRecorderCompress.Value = 1;
+        _outputRecorderCrf.Value = 23;
+        _outputRecorderPreset.Value = 0;
+        _outputRecorder.SetOutputDirectory(string.Empty);
+        _outputRecorderPathDraft = string.Empty;
 
         var idMap = new Dictionary<int, int>();
         var nodeStateByNewId = new Dictionary<int, VisualPipelineNodePresetState>();
@@ -517,9 +523,37 @@ public sealed partial class VisualPipeline
                 staticImageSourceStage.SetImagePaths(nodeState.SourceImagePaths);
             }
 
-            if (node.Stage is PassThroughRecorderStage passThroughRecorderStage && !string.IsNullOrWhiteSpace(nodeState.RecorderOutputDirectory))
+            if (node.Kind == PipelineNodeKind.Output)
             {
-                passThroughRecorderStage.SetOutputDirectory(nodeState.RecorderOutputDirectory);
+                if (!string.IsNullOrWhiteSpace(nodeState.RecorderOutputDirectory))
+                {
+                    _outputRecorder.SetOutputDirectory(nodeState.RecorderOutputDirectory);
+                }
+
+                if (nodeState.RecorderTrigger.HasValue)
+                {
+                    _outputRecorderTrigger.Value = Math.Clamp(nodeState.RecorderTrigger.Value, 0f, 1f);
+                }
+
+                if (nodeState.RecorderFps.HasValue)
+                {
+                    _outputRecorderFps.Value = Math.Clamp(nodeState.RecorderFps.Value, 1f, 120f);
+                }
+
+                if (nodeState.RecorderCompress.HasValue)
+                {
+                    _outputRecorderCompress.Value = Math.Clamp(nodeState.RecorderCompress.Value, 0, 1);
+                }
+
+                if (nodeState.RecorderCrf.HasValue)
+                {
+                    _outputRecorderCrf.Value = Math.Clamp(nodeState.RecorderCrf.Value, 0, 51);
+                }
+
+                if (nodeState.RecorderPreset.HasValue)
+                {
+                    _outputRecorderPreset.Value = Math.Clamp(nodeState.RecorderPreset.Value, 0, 8);
+                }
             }
 
             _nodes.Add(node);

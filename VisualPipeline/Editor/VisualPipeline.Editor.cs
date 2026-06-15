@@ -457,9 +457,9 @@ public sealed partial class VisualPipeline
                 "!");
         }
 
-        if (node.Stage is PassThroughRecorderStage recorderStage)
+        if (node.Kind == PipelineNodeKind.Output)
         {
-            var indicatorColor = recorderStage.IsRecording
+            var indicatorColor = _outputRecorder.IsRecording
                 ? new System.Numerics.Vector4(1f, 0.2f, 0.2f, 1f)
                 : new System.Numerics.Vector4(0.45f, 0.2f, 0.2f, 1f);
             drawList.AddCircleFilled(new System.Numerics.Vector2(max.X - 16f, min.Y + 16f), 5f, ImGui.GetColorU32(indicatorColor));
@@ -468,12 +468,10 @@ public sealed partial class VisualPipeline
         var details = node.Kind switch
         {
             PipelineNodeKind.Stage when node.Stage is SignalSwitchStage => "Switch\nIn: 8 Out: 1",
-            PipelineNodeKind.Stage when node.Stage is PassThroughRecorderStage recorderNodeStage => recorderNodeStage.IsRecording
-                ? "Recorder\nIn: 1 Out: 1\nREC"
-                : "Recorder\nIn: 1 Out: 1\nIdle", 
             PipelineNodeKind.Stage when node.Stage is not null && node.Stage.IsSourceStage => "Source\nOut: 1",
             PipelineNodeKind.Stage => "Effect\nIn: 1 Out: 1",
             PipelineNodeKind.Mix => "Mix\nIn: 2 Out: 1",
+            PipelineNodeKind.Output => _outputRecorder.IsRecording ? "Output\nIn: 1\nREC" : "Output\nIn: 1\nIdle",
             _ => "Output\nIn: 1"
         };
         drawList.AddText(new System.Numerics.Vector2(min.X + 10f, min.Y + 34f), ImGui.GetColorU32(new System.Numerics.Vector4(0.78f, 0.82f, 0.9f, 1f)), details);
@@ -727,10 +725,7 @@ public sealed partial class VisualPipeline
             {
                 DrawStaticImageSourceInspector(selected.Id, staticImageSourceStage);
             }
-            else if (selected.Stage is PassThroughRecorderStage passThroughRecorderStage)
-            {
-                DrawPassThroughRecorderInspector(selected.Id, passThroughRecorderStage);
-            }
+            
         }
         else if (selected.Kind == PipelineNodeKind.Mix)
         {
@@ -740,6 +735,7 @@ public sealed partial class VisualPipeline
         else
         {
             DrawInputNodeSelector("Final Input", selectedIndex, ref selected.InputAId, allowCamera: true);
+            DrawOutputRecorderInspector();
         }
 
         if (selected.Kind != PipelineNodeKind.Output && ImGui.Button("Delete Selected Node"))
@@ -899,60 +895,87 @@ public sealed partial class VisualPipeline
         ImGui.PopID();
     }
 
-    private void DrawPassThroughRecorderInspector(int nodeId, PassThroughRecorderStage recorderStage)
+    private void DrawOutputRecorderInspector()
     {
         ImGui.Separator();
-        ImGui.PushID($"pass_through_recorder_inspector_{nodeId}");
-        ImGui.Text("Pass Through Recorder");
+        ImGui.Text("Output Recorder");
 
-        var status = recorderStage.IsRecording ? "Recording" : "Idle";
-        var statusColor = recorderStage.IsRecording
+        var status = _outputRecorder.IsRecording ? "Recording" : "Idle";
+        var statusColor = _outputRecorder.IsRecording
             ? new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f)
             : new System.Numerics.Vector4(0.75f, 0.78f, 0.82f, 1f);
         ImGui.TextColored(statusColor, status);
 
-        if (!string.IsNullOrWhiteSpace(recorderStage.ActiveFilePath))
+        if (!string.IsNullOrWhiteSpace(_outputRecorder.ActiveFilePath))
         {
-            ImGui.TextWrapped(recorderStage.ActiveFilePath);
+            ImGui.TextWrapped(_outputRecorder.ActiveFilePath);
         }
 
-        var draftPath = _recorderOutputPathDraftByNode.TryGetValue(nodeId, out var currentDraft)
-            ? currentDraft
-            : recorderStage.OutputDirectory;
+        var trigger = _outputRecorderTrigger.Value;
+        if (ImGui.SliderFloat("Recorder Trigger", ref trigger, 0f, 1f))
+        {
+            _outputRecorderTrigger.Value = trigger;
+        }
+
+        var fps = _outputRecorderFps.Value;
+        if (ImGui.SliderFloat("Recorder FPS", ref fps, 1f, 120f))
+        {
+            _outputRecorderFps.Value = fps;
+        }
+
+        var compress = _outputRecorderCompress.Value;
+        if (ImGui.SliderInt("Compress (0/1)", ref compress, 0, 1))
+        {
+            _outputRecorderCompress.Value = compress;
+        }
+
+        var crf = _outputRecorderCrf.Value;
+        if (ImGui.SliderInt("Compression CRF", ref crf, 0, 51))
+        {
+            _outputRecorderCrf.Value = crf;
+        }
+
+        var preset = _outputRecorderPreset.Value;
+        if (ImGui.SliderInt("Preset (0..8)", ref preset, 0, 8))
+        {
+            _outputRecorderPreset.Value = preset;
+        }
+
+        if (string.IsNullOrEmpty(_outputRecorderPathDraft))
+        {
+            _outputRecorderPathDraft = _outputRecorder.OutputDirectory;
+        }
 
         ImGui.SetNextItemWidth(-1f);
-        ImGui.InputText("Output Folder", ref draftPath, 1024);
-        _recorderOutputPathDraftByNode[nodeId] = draftPath;
+        ImGui.InputText("Output Folder", ref _outputRecorderPathDraft, 1024);
 
-        if (ImGui.Button("Apply Output Folder") && !recorderStage.IsRecording)
+        if (ImGui.Button("Apply Output Folder") && !_outputRecorder.IsRecording)
         {
-            recorderStage.SetOutputDirectory(draftPath);
+            _outputRecorder.SetOutputDirectory(_outputRecorderPathDraft);
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Pick Folder…") && !recorderStage.IsRecording)
+        if (ImGui.Button("Pick Folder…") && !_outputRecorder.IsRecording)
         {
             var folder = NativeFilePicker.PickFolder();
             if (!string.IsNullOrWhiteSpace(folder))
             {
-                recorderStage.SetOutputDirectory(folder);
-                _recorderOutputPathDraftByNode[nodeId] = folder;
+                _outputRecorder.SetOutputDirectory(folder);
+                _outputRecorderPathDraft = folder;
             }
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Use Default") && !recorderStage.IsRecording)
+        if (ImGui.Button("Use Default") && !_outputRecorder.IsRecording)
         {
-            recorderStage.SetOutputDirectory(string.Empty);
-            _recorderOutputPathDraftByNode[nodeId] = string.Empty;
+            _outputRecorder.SetOutputDirectory(string.Empty);
+            _outputRecorderPathDraft = string.Empty;
         }
 
-        if (recorderStage.IsRecording)
+        if (_outputRecorder.IsRecording)
         {
             ImGui.TextDisabled("Stop recording before changing folder.");
         }
-
-        ImGui.PopID();
     }
 
     private static System.Numerics.Vector2 GetNodeVisualSize(PipelineNode node)

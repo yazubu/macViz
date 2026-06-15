@@ -36,7 +36,13 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
     private int? _selectedNodeId;
     private int? _linkStartNodeId;
     private readonly Dictionary<int, string> _staticImagePathDraftByNode = [];
-    private readonly Dictionary<int, string> _recorderOutputPathDraftByNode = [];
+    private readonly Parameter<float> _outputRecorderTrigger = new("Output Recorder / Trigger", 0f, 1f, 0f);
+    private readonly Parameter<float> _outputRecorderFps = new("Output Recorder / FPS", 1f, 120f, 30f);
+    private readonly Parameter<int> _outputRecorderCompress = new("Output Recorder / Compress (0 Off, 1 On)", 0, 1, 1);
+    private readonly Parameter<int> _outputRecorderCrf = new("Output Recorder / Compression CRF", 0, 51, 23);
+    private readonly Parameter<int> _outputRecorderPreset = new("Output Recorder / Preset (0 UltraFast,1 SuperFast,2 VeryFast,3 Faster,4 Fast,5 Medium,6 Slow,7 Slower,8 VerySlow)", 0, 8, 0);
+    private string _outputRecorderPathDraft = string.Empty;
+    private readonly OutputRecorder _outputRecorder = new();
     private System.Numerics.Vector2 _canvasPan = new(24f, 24f);
     private float _canvasZoom = 1f;
 
@@ -50,7 +56,6 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         new(SourceVisualStage.CymaticSpiralsTypeId, "Cymatic Spirals Source", () => new SourceVisualStage("Cymatic Spirals", new CymaticSpirals3D(), SourceVisualStage.CymaticSpiralsTypeId)),
         new(SourceVisualStage.DiffusionPaintingTypeId, "Diffusion Painting Source", () => new SourceVisualStage("Diffusion Painting", new DiffusionPainting2D(), SourceVisualStage.DiffusionPaintingTypeId)),
         new(SignalSwitchStage.TypeIdValue, "Signal Switch", () => new SignalSwitchStage()),
-        new(PassThroughRecorderStage.TypeIdValue, "Pass Through Recorder", () => new PassThroughRecorderStage()),
         new(EdgeDetectEffectStage.TypeIdValue, "Edge Detection Effect", () => new EdgeDetectEffectStage()),
         new(EdgeRadianceEffectStage.TypeIdValue, "Edge Radiance Effect", () => new EdgeRadianceEffectStage()),
         new(SnapshotPeakEffectStage.TypeIdValue, "Snapshot Peak Hold Effect", () => new SnapshotPeakEffectStage()),
@@ -87,6 +92,33 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         }
     }
 
+    private IEnumerable<IParameter> GetOutputRecorderParameters()
+    {
+        yield return _outputRecorderTrigger;
+        yield return _outputRecorderFps;
+        yield return _outputRecorderCompress;
+        yield return _outputRecorderCrf;
+        yield return _outputRecorderPreset;
+    }
+
+    private bool IsOutputRecorderParameter(IParameter parameter)
+    {
+        return ReferenceEquals(parameter, _outputRecorderTrigger)
+            || ReferenceEquals(parameter, _outputRecorderFps)
+            || ReferenceEquals(parameter, _outputRecorderCompress)
+            || ReferenceEquals(parameter, _outputRecorderCrf)
+            || ReferenceEquals(parameter, _outputRecorderPreset);
+    }
+
+    private void SyncOutputRecorderSettingsFromParameters()
+    {
+        _outputRecorder.Trigger = _outputRecorderTrigger.CurrentValue;
+        _outputRecorder.Fps = _outputRecorderFps.CurrentValue;
+        _outputRecorder.Compress = _outputRecorderCompress.CurrentValue;
+        _outputRecorder.Crf = _outputRecorderCrf.CurrentValue;
+        _outputRecorder.Preset = _outputRecorderPreset.CurrentValue;
+    }
+
     public bool TryGetStageDescriptorForParameter(IParameter parameter, out int stageNumber, out string stageName)
     {
         stageNumber = 0;
@@ -113,6 +145,13 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
                 stageName = node.Stage.Name;
                 return true;
             }
+        }
+
+        if (IsOutputRecorderParameter(parameter))
+        {
+            stageNumber = stageCounter + 1;
+            stageName = "Out Box";
+            return true;
         }
 
         return false;
@@ -163,6 +202,12 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             }
         }
 
+        if (IsOutputRecorderParameter(parameter))
+        {
+            nodeLabel = "Out Box (Output Recorder)";
+            return true;
+        }
+
         nodeLabel = string.Empty;
         return false;
     }
@@ -202,9 +247,14 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
                 nodeState.SourceImagePaths = [.. staticImageSourceStage.ImagePaths];
             }
 
-            if (node.Stage is PassThroughRecorderStage passThroughRecorderStage)
+            if (node.Kind == PipelineNodeKind.Output)
             {
-                nodeState.RecorderOutputDirectory = passThroughRecorderStage.OutputDirectory;
+                nodeState.RecorderOutputDirectory = _outputRecorder.OutputDirectory;
+                nodeState.RecorderTrigger = _outputRecorderTrigger.Value;
+                nodeState.RecorderFps = _outputRecorderFps.Value;
+                nodeState.RecorderCompress = _outputRecorderCompress.Value;
+                nodeState.RecorderCrf = _outputRecorderCrf.Value;
+                nodeState.RecorderPreset = _outputRecorderPreset.Value;
             }
 
             state.Nodes.Add(nodeState);

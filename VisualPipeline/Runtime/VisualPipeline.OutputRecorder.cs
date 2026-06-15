@@ -1,24 +1,11 @@
 using System.Diagnostics;
-using OpenTK.Graphics.OpenGL4;
 
 namespace macViz;
 
 public sealed partial class VisualPipeline
 {
-    private sealed class PassThroughRecorderStage : PipelineStage
+    private sealed class OutputRecorder : IDisposable
     {
-        public const string TypeIdValue = "effect.passThroughRecorder";
-
-        private readonly Parameter<float> _trigger = new("Recorder / Trigger", 0f, 1f, 0f);
-        private readonly Parameter<float> _fps = new("Recorder / FPS", 1f, 120f, 30f);
-        private readonly Parameter<int> _compress = new("Recorder / Compress (0 Off, 1 On)", 0, 1, 1);
-        private readonly Parameter<int> _crf = new("Recorder / Compression CRF", 0, 51, 23);
-        private readonly Parameter<int> _preset = new("Recorder / Preset (0 UltraFast,1 SuperFast,2 VeryFast,3 Faster,4 Fast,5 Medium,6 Slow,7 Slower,8 VerySlow)", 0, 8, 0);
-        private readonly IReadOnlyList<IParameter> _parameters;
-
-        private int _program;
-        private int _uTexture;
-
         private bool _previousTriggerHigh;
         private bool _isRecording;
         private int _frameWidth;
@@ -32,14 +19,12 @@ public sealed partial class VisualPipeline
         private string _outputDirectory = string.Empty;
         private long _writtenFrames;
 
-        public PassThroughRecorderStage()
-        {
-            _parameters = [_trigger, _fps, _compress, _crf, _preset];
-        }
+        public float Trigger { get; set; }
+        public float Fps { get; set; } = 30f;
+        public int Compress { get; set; } = 1;
+        public int Crf { get; set; } = 23;
+        public int Preset { get; set; }
 
-        public override string TypeId => TypeIdValue;
-        public override string Name => "Pass Through Recorder";
-        public override IReadOnlyList<IParameter> Parameters => _parameters;
         public bool IsRecording => _isRecording;
         public string? ActiveFilePath => _activeFilePath;
         public string OutputDirectory => _outputDirectory;
@@ -54,61 +39,13 @@ public sealed partial class VisualPipeline
             _outputDirectory = string.IsNullOrWhiteSpace(path) ? string.Empty : path.Trim();
         }
 
-        public override void EnsureResources(VisualPipeline host)
+        public void ProcessFrame(VisualPipeline host, int sourceTexture)
         {
-            if (_program != 0)
-            {
-                return;
-            }
-
-            const string vertex = """
-                #version 330 core
-                layout (location = 0) in vec2 aPosition;
-                layout (location = 1) in vec2 aUv;
-                out vec2 vUv;
-                void main()
-                {
-                    vUv = aUv;
-                    gl_Position = vec4(aPosition, 0.0, 1.0);
-                }
-                """;
-
-            const string fragment = """
-                #version 330 core
-                in vec2 vUv;
-                out vec4 fragColor;
-                uniform sampler2D uTexture;
-                void main()
-                {
-                    fragColor = texture(uTexture, vUv);
-                }
-                """;
-
-            _program = CompileProgram(vertex, fragment);
-            _uTexture = GL.GetUniformLocation(_program, "uTexture");
-
-            GL.UseProgram(_program);
-            GL.Uniform1(_uTexture, 0);
-            GL.UseProgram(0);
-        }
-
-        public override void OnResize(int width, int height, VisualPipeline host)
-        {
-            _frameWidth = Math.Max(1, width);
-            _frameHeight = Math.Max(1, height);
+            _frameWidth = Math.Max(1, host._renderWidth);
+            _frameHeight = Math.Max(1, host._renderHeight);
             EnsureFrameBuffer();
 
-            if (_isRecording)
-            {
-                StopRecording("stopped due to resize");
-            }
-        }
-
-        public override void Render(VisualPipeline host, int inputTexture, float[] spectrum, float time)
-        {
-            host.DrawFullscreen(_program, inputTexture);
-
-            var triggerHigh = _trigger.CurrentValue >= 0.5f;
+            var triggerHigh = Trigger >= 0.5f;
             if (triggerHigh && !_previousTriggerHigh)
             {
                 if (_isRecording)
@@ -123,18 +60,12 @@ public sealed partial class VisualPipeline
 
             _previousTriggerHigh = triggerHigh;
 
-            if (!_isRecording || inputTexture == 0)
+            if (!_isRecording || sourceTexture == 0)
             {
                 return;
             }
 
-            EnsureFrameBuffer();
-            if (_frameBuffer.Length == 0)
-            {
-                return;
-            }
-
-            if (!host.TryReadTextureRgba(inputTexture, _frameBuffer))
+            if (!host.TryReadTextureRgba(sourceTexture, _frameBuffer))
             {
                 return;
             }
@@ -153,15 +84,9 @@ public sealed partial class VisualPipeline
             }
         }
 
-        public override void Dispose()
+        public void Dispose()
         {
             StopRecording("stopped on dispose");
-
-            if (_program != 0)
-            {
-                GL.DeleteProgram(_program);
-                _program = 0;
-            }
         }
 
         private void EnsureFrameBuffer()
@@ -192,7 +117,7 @@ public sealed partial class VisualPipeline
             var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
             _writtenFrames = 0;
 
-            if (_compress.CurrentValue > 0 && TryStartFfmpeg(recordingsDir, stamp))
+            if (Compress > 0 && TryStartFfmpeg(recordingsDir, stamp))
             {
                 _isRecording = true;
                 Console.WriteLine($"[Recorder] Recording started (compressed): {_activeFilePath}");
@@ -227,9 +152,9 @@ public sealed partial class VisualPipeline
         private bool TryStartFfmpeg(string recordingsDir, string stamp)
         {
             var outputPath = Path.Combine(recordingsDir, $"capture-{stamp}.mp4");
-            var fps = Math.Clamp((int)MathF.Round(_fps.CurrentValue), 1, 120);
-            var crf = Math.Clamp(_crf.CurrentValue, 0, 51);
-            var preset = GetPresetName(_preset.CurrentValue);
+            var fps = Math.Clamp((int)MathF.Round(Fps), 1, 120);
+            var crf = Math.Clamp(Crf, 0, 51);
+            var preset = GetPresetName(Preset);
 
             var args = $"-y -f rawvideo -pixel_format rgba -video_size {_frameWidth}x{_frameHeight} -framerate {fps} -i - -an -c:v libx264 -preset {preset} -crf {crf} -pix_fmt yuv420p \"{outputPath}\"";
 
@@ -245,8 +170,7 @@ public sealed partial class VisualPipeline
                         RedirectStandardInput = true,
                         RedirectStandardError = false,
                         CreateNoWindow = true
-                    },
-                    EnableRaisingEvents = false
+                    }
                 };
 
                 if (!process.Start())
@@ -273,32 +197,11 @@ public sealed partial class VisualPipeline
                 return;
             }
 
-            try
-            {
-                _encoderInput?.Flush();
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                _encoderInput?.Dispose();
-            }
-            catch
-            {
-            }
-
+            try { _encoderInput?.Flush(); } catch { }
+            try { _encoderInput?.Dispose(); } catch { }
             _encoderInput = null;
 
-            try
-            {
-                _rawOutput?.Dispose();
-            }
-            catch
-            {
-            }
-
+            try { _rawOutput?.Dispose(); } catch { }
             _rawOutput = null;
 
             if (_ffmpegProcess is not null)
@@ -310,9 +213,7 @@ public sealed partial class VisualPipeline
                         _ffmpegProcess.WaitForExit(3000);
                     }
                 }
-                catch
-                {
-                }
+                catch { }
 
                 try
                 {
@@ -321,9 +222,7 @@ public sealed partial class VisualPipeline
                         _ffmpegProcess.Kill(true);
                     }
                 }
-                catch
-                {
-                }
+                catch { }
 
                 _ffmpegProcess.Dispose();
                 _ffmpegProcess = null;

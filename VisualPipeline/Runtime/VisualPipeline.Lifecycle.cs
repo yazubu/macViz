@@ -28,6 +28,8 @@ public sealed partial class VisualPipeline
         {
             _parameters.AddRange(node.GetAllParameters());
         }
+
+        _parameters.AddRange(GetOutputRecorderParameters());
     }
 
     private void BuildDefaultPipeline()
@@ -147,7 +149,8 @@ public sealed partial class VisualPipeline
 
         _nodeOutputTextures.Clear();
         _staticImagePathDraftByNode.Clear();
-        _recorderOutputPathDraftByNode.Clear();
+        _outputRecorder.Dispose();
+        _outputRecorderPathDraft = string.Empty;
         _selectedNodeId = null;
         _linkStartNodeId = null;
     }
@@ -165,6 +168,8 @@ public sealed partial class VisualPipeline
         if (_quadEbo != 0) GL.DeleteBuffer(_quadEbo);
         if (_quadVbo != 0) GL.DeleteBuffer(_quadVbo);
         if (_quadVao != 0) GL.DeleteVertexArray(_quadVao);
+
+        _outputRecorder.Dispose();
 
         if (_blitProgram != 0) GL.DeleteProgram(_blitProgram);
         if (_blitProgramFlipY != 0) GL.DeleteProgram(_blitProgramFlipY);

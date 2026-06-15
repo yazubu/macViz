@@ -86,6 +86,9 @@ public sealed partial class VisualPipeline
             DrawFullscreen(_blitProgram, finalTexture);
         }
 
+        SyncOutputRecorderSettingsFromParameters();
+        _outputRecorder.ProcessFrame(this, finalTexture);
+
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.BindVertexArray(0);
         GL.UseProgram(0);
