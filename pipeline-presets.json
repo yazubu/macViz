@@ -1612,6 +1612,325 @@
           }
         }
       ]
+    },
+    {
+      "Name": "Edge Drip",
+      "Pipeline": {
+        "Nodes": [
+          {
+            "NodeId": 1,
+            "NodeKind": "Stage",
+            "StageTypeId": "camera.source",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 40,
+            "PositionY": 80,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Camera Source / Device Index": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 6,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.edgeDetect",
+            "InputAId": 1,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 361,
+            "PositionY": 224,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Edge Effect / Strength": 1.4,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 5,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.wetPaintDrip",
+            "InputAId": 6,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 649,
+            "PositionY": 91,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Wet Paint Drip / Edge Strength": 1.853,
+              "Wet Paint Drip / Edge Threshold": 0.201,
+              "Wet Paint Drip / Edge Softness": 0.12,
+              "Wet Paint Drip / Drip Length (px)": 320,
+              "Wet Paint Drip / Drip Speed": 1.1,
+              "Wet Paint Drip / Drip Density": 1,
+              "Wet Paint Drip / Wiggle (px)": 27.176,
+              "Wet Paint Drip / Direction (deg)": 22.941,
+              "Wet Paint Drip / Timeline T": 0,
+              "Wet Paint Drip / Time Influence": 0.098,
+              "Wet Paint Drip / Mix": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 4,
+            "NodeKind": "Output",
+            "StageTypeId": null,
+            "InputAId": 5,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 1000,
+            "PositionY": 94,
+            "ParameterValues": {},
+            "SourceImagePaths": []
+          }
+        ],
+        "Stages": []
+      },
+      "Lfos": [],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 8,
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": false,
+          "VariabilityWindowSeconds": 2
+        }
+      ],
+      "ParameterModulations": [],
+      "ModGraphNodePositions": [
+        {
+          "NodeKey": "Stage 1 (Camera Source)",
+          "X": 0,
+          "Y": 0
+        },
+        {
+          "NodeKey": "Stage 2 (Edge Detection)",
+          "X": 0,
+          "Y": 120
+        },
+        {
+          "NodeKey": "Stage 3 (Wet Paint Drip)",
+          "X": 0,
+          "Y": 240
+        }
+      ],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": []
+    },
+    {
+      "Name": "Radiance Test",
+      "Pipeline": {
+        "Nodes": [
+          {
+            "NodeId": 5,
+            "NodeKind": "Stage",
+            "StageTypeId": "camera.source",
+            "InputAId": null,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 30,
+            "PositionY": 24,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Camera Source / Device Index": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 6,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.posterize",
+            "InputAId": 5,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 650,
+            "PositionY": 24,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Posterize Effect / Levels": 2,
+              "Posterize Effect / Gamma": 1,
+              "Posterize Effect / Mix": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 7,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.edgeDetect",
+            "InputAId": 6,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 30,
+            "PositionY": 194,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 3,
+              "Edge Effect / Strength": 1.596,
+              "Edge Effect / Threshold": 0.25,
+              "Edge Effect / Mix": 1,
+              "Edge Effect / Invert": 0
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 8,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.edgeRadiance",
+            "InputAId": 7,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 372,
+            "PositionY": 231,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Edge Radiance / Edge Strength": 0.71,
+              "Edge Radiance / Edge Threshold": 1,
+              "Edge Radiance / Edge Softness": 0.123,
+              "Edge Radiance / Emit Mode (0 Bright,1 Dark,2 Both)": 1,
+              "Edge Radiance / Luma Threshold": 0.926,
+              "Edge Radiance / Outline Sets": 7,
+              "Edge Radiance / Outline Distance (px)": 10,
+              "Edge Radiance / Set Fade": 0.324,
+              "Edge Radiance / Outline Gain": 2.782,
+              "Edge Radiance / Gaussian Blur Distance (px)": 14.422,
+              "Edge Radiance / Mix": 0.559
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 10,
+            "NodeKind": "Stage",
+            "StageTypeId": "effect.infinityMirror",
+            "InputAId": 8,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 728,
+            "PositionY": 205,
+            "ParameterValues": {
+              "Stage / Mix": 1,
+              "Stage / Blend Mode (0 Normal,1 Subtract,2 Multiply,3 Darker,4 Brighter,5 Screen,6 Difference,7 Overlay,8 Hard Light,9 Divide,10 Color Dodge)": 0,
+              "Infinity Mirror / Center X": 0.5,
+              "Infinity Mirror / Center Y": 0.5,
+              "Infinity Mirror / Zoom Step": 1.096,
+              "Infinity Mirror / Rotation Step (deg)": 1.618,
+              "Infinity Mirror / Drift X": 0,
+              "Infinity Mirror / Drift Y": -0.01,
+              "Infinity Mirror / Iterations": 12,
+              "Infinity Mirror / Decay": 0.84,
+              "Infinity Mirror / Tunnel Gain": 1.194,
+              "Infinity Mirror / Mix": 1
+            },
+            "SourceImagePaths": []
+          },
+          {
+            "NodeId": 9,
+            "NodeKind": "Output",
+            "StageTypeId": null,
+            "InputAId": 10,
+            "InputBId": null,
+            "InputExtraIds": [],
+            "PositionX": 1061,
+            "PositionY": 223,
+            "ParameterValues": {},
+            "SourceImagePaths": []
+          }
+        ],
+        "Stages": []
+      },
+      "Lfos": [
+        {
+          "SourceId": 1,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 1
+        },
+        {
+          "SourceId": 2,
+          "WaveType": 0,
+          "Frequency": 1,
+          "Phase": 0,
+          "DutyCycle": 0.5,
+          "SyncEnabled": true,
+          "SyncSpeedMultiplier": 0.5
+        }
+      ],
+      "FftSources": [
+        {
+          "SourceId": 1,
+          "BinCount": 16,
+          "Smoothing": 0.75,
+          "LogarithmicGrouping": false,
+          "ExpandVariability": true,
+          "VariabilityWindowSeconds": 2
+        }
+      ],
+      "ParameterModulations": [
+        {
+          "ParameterIndex": 32,
+          "ParameterName": "Infinity Mirror / Rotation Step (deg)",
+          "LfoAssignments": [],
+          "FftAssignments": [
+            {
+              "SourceId": 1,
+              "BinIndex": 12
+            }
+          ]
+        }
+      ],
+      "ModGraphNodePositions": [
+        {
+          "NodeKey": "Stage 1 (Camera Source)",
+          "X": 0,
+          "Y": 0
+        },
+        {
+          "NodeKey": "Stage 2 (Posterize)",
+          "X": 0,
+          "Y": 120
+        },
+        {
+          "NodeKey": "Stage 3 (Edge Detection)",
+          "X": 0,
+          "Y": 240
+        },
+        {
+          "NodeKey": "Stage 4 (Edge Radiance)",
+          "X": 0,
+          "Y": 360
+        },
+        {
+          "NodeKey": "Stage 5 (Infinity Mirror)",
+          "X": -397,
+          "Y": 27
+        }
+      ],
+      "ModGraphProcessors": [],
+      "ModGraphTargetLinks": [
+        {
+          "NodeKey": "Stage 5 (Infinity Mirror)",
+          "ParameterIndex": 5,
+          "ParameterName": "Infinity Mirror / Rotation Step (deg)",
+          "Link": {
+            "SourceKind": "Fft",
+            "SourceId": 1,
+            "FftBinIndex": 12
+          }
+        }
+      ]
     }
   ]
 }

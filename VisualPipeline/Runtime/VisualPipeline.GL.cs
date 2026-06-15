@@ -309,6 +309,34 @@ public sealed partial class VisualPipeline
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
     }
 
+    internal bool TryReadTextureRgba(int sourceTexture, byte[] destination)
+    {
+        if (sourceTexture == 0 || _renderWidth <= 0 || _renderHeight <= 0)
+        {
+            return false;
+        }
+
+        var requiredBytes = _renderWidth * _renderHeight * 4;
+        if (destination.Length < requiredBytes)
+        {
+            return false;
+        }
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, _copyFboRead);
+        GL.FramebufferTexture2D(
+            FramebufferTarget.ReadFramebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            TextureTarget.Texture2D,
+            sourceTexture,
+            0);
+
+        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
+        GL.ReadPixels(0, 0, _renderWidth, _renderHeight, PixelFormat.Rgba, PixelType.UnsignedByte, destination);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+        return true;
+    }
+
     private static int CompileProgram(string vertexSource, string fragmentSource)
     {
         var vs = GL.CreateShader(ShaderType.VertexShader);

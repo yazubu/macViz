@@ -147,6 +147,7 @@ public sealed partial class VisualPipeline
 
         _nodeOutputTextures.Clear();
         _staticImagePathDraftByNode.Clear();
+        _recorderOutputPathDraftByNode.Clear();
         _selectedNodeId = null;
         _linkStartNodeId = null;
     }

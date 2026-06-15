@@ -36,6 +36,7 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
     private int? _selectedNodeId;
     private int? _linkStartNodeId;
     private readonly Dictionary<int, string> _staticImagePathDraftByNode = [];
+    private readonly Dictionary<int, string> _recorderOutputPathDraftByNode = [];
     private System.Numerics.Vector2 _canvasPan = new(24f, 24f);
     private float _canvasZoom = 1f;
 
@@ -49,7 +50,9 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         new(SourceVisualStage.CymaticSpiralsTypeId, "Cymatic Spirals Source", () => new SourceVisualStage("Cymatic Spirals", new CymaticSpirals3D(), SourceVisualStage.CymaticSpiralsTypeId)),
         new(SourceVisualStage.DiffusionPaintingTypeId, "Diffusion Painting Source", () => new SourceVisualStage("Diffusion Painting", new DiffusionPainting2D(), SourceVisualStage.DiffusionPaintingTypeId)),
         new(SignalSwitchStage.TypeIdValue, "Signal Switch", () => new SignalSwitchStage()),
+        new(PassThroughRecorderStage.TypeIdValue, "Pass Through Recorder", () => new PassThroughRecorderStage()),
         new(EdgeDetectEffectStage.TypeIdValue, "Edge Detection Effect", () => new EdgeDetectEffectStage()),
+        new(EdgeRadianceEffectStage.TypeIdValue, "Edge Radiance Effect", () => new EdgeRadianceEffectStage()),
         new(SnapshotPeakEffectStage.TypeIdValue, "Snapshot Peak Hold Effect", () => new SnapshotPeakEffectStage()),
         new(FrameFreezeEffectStage.TypeIdValue, "Frame Freeze Effect", () => new FrameFreezeEffectStage()),
         new(FlipEffectStage.TypeIdValue, "Flip Effect", () => new FlipEffectStage()),
@@ -66,9 +69,12 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
         new(CubistEchoesEffectStage.TypeIdValue, "Cubist Echoes Effect", () => new CubistEchoesEffectStage()),
         new(CubistDelayEffectStage.TypeIdValue, "Cubist Delay Effect", () => new CubistDelayEffectStage()),
         new(CodecBleedEffectStage.TypeIdValue, "Codec Bleed Effect", () => new CodecBleedEffectStage()),
+        new(BleedingEdgeEffectStage.TypeIdValue, "Bleeding Edge Effect", () => new BleedingEdgeEffectStage()),
+        new(WetPaintDripEffectStage.TypeIdValue, "Wet Paint Drip Effect", () => new WetPaintDripEffectStage()),
         new(ColorSwapEffectStage.TypeIdValue, "Color Swap Effect", () => new ColorSwapEffectStage()),
         new(TypographicMatrixEffectStage.TypeIdValue, "Typographic Matrix Effect", () => new TypographicMatrixEffectStage()),
-        new(KaleidoscopeEffectStage.TypeIdValue, "Kaleidoscope Effect", () => new KaleidoscopeEffectStage())
+        new(KaleidoscopeEffectStage.TypeIdValue, "Kaleidoscope Effect", () => new KaleidoscopeEffectStage()),
+        new(InfinityMirrorEffectStage.TypeIdValue, "Infinity Mirror Effect", () => new InfinityMirrorEffectStage())
     ];
 
     public string Name => "Visual Pipeline";
@@ -194,6 +200,11 @@ public sealed partial class VisualPipeline : IVisual, IVisualEditorPanel
             if (node.Stage is StaticImageSourceStage staticImageSourceStage)
             {
                 nodeState.SourceImagePaths = [.. staticImageSourceStage.ImagePaths];
+            }
+
+            if (node.Stage is PassThroughRecorderStage passThroughRecorderStage)
+            {
+                nodeState.RecorderOutputDirectory = passThroughRecorderStage.OutputDirectory;
             }
 
             state.Nodes.Add(nodeState);

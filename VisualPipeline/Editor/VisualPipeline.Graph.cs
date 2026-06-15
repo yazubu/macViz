@@ -306,6 +306,7 @@ public sealed partial class VisualPipeline
         }
 
         _staticImagePathDraftByNode.Remove(node.Id);
+        _recorderOutputPathDraftByNode.Remove(node.Id);
 
         if (_selectedNodeId == node.Id)
         {
@@ -514,6 +515,11 @@ public sealed partial class VisualPipeline
             if (node.Stage is StaticImageSourceStage staticImageSourceStage && nodeState.SourceImagePaths.Count > 0)
             {
                 staticImageSourceStage.SetImagePaths(nodeState.SourceImagePaths);
+            }
+
+            if (node.Stage is PassThroughRecorderStage passThroughRecorderStage && !string.IsNullOrWhiteSpace(nodeState.RecorderOutputDirectory))
+            {
+                passThroughRecorderStage.SetOutputDirectory(nodeState.RecorderOutputDirectory);
             }
 
             _nodes.Add(node);

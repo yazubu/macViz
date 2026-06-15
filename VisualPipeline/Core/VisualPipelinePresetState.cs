@@ -18,6 +18,7 @@ public sealed class VisualPipelineNodePresetState
     public float PositionY { get; set; }
     public Dictionary<string, float> ParameterValues { get; set; } = [];
     public List<string> SourceImagePaths { get; set; } = [];
+    public string? RecorderOutputDirectory { get; set; }
 }
 
 public sealed class VisualPipelineStagePresetState

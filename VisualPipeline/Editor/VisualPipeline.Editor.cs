@@ -457,9 +457,20 @@ public sealed partial class VisualPipeline
                 "!");
         }
 
+        if (node.Stage is PassThroughRecorderStage recorderStage)
+        {
+            var indicatorColor = recorderStage.IsRecording
+                ? new System.Numerics.Vector4(1f, 0.2f, 0.2f, 1f)
+                : new System.Numerics.Vector4(0.45f, 0.2f, 0.2f, 1f);
+            drawList.AddCircleFilled(new System.Numerics.Vector2(max.X - 16f, min.Y + 16f), 5f, ImGui.GetColorU32(indicatorColor));
+        }
+
         var details = node.Kind switch
         {
             PipelineNodeKind.Stage when node.Stage is SignalSwitchStage => "Switch\nIn: 8 Out: 1",
+            PipelineNodeKind.Stage when node.Stage is PassThroughRecorderStage recorderNodeStage => recorderNodeStage.IsRecording
+                ? "Recorder\nIn: 1 Out: 1\nREC"
+                : "Recorder\nIn: 1 Out: 1\nIdle", 
             PipelineNodeKind.Stage when node.Stage is not null && node.Stage.IsSourceStage => "Source\nOut: 1",
             PipelineNodeKind.Stage => "Effect\nIn: 1 Out: 1",
             PipelineNodeKind.Mix => "Mix\nIn: 2 Out: 1",
@@ -716,6 +727,10 @@ public sealed partial class VisualPipeline
             {
                 DrawStaticImageSourceInspector(selected.Id, staticImageSourceStage);
             }
+            else if (selected.Stage is PassThroughRecorderStage passThroughRecorderStage)
+            {
+                DrawPassThroughRecorderInspector(selected.Id, passThroughRecorderStage);
+            }
         }
         else if (selected.Kind == PipelineNodeKind.Mix)
         {
@@ -879,6 +894,62 @@ public sealed partial class VisualPipeline
             {
                 staticImageSourceStage.RemoveImageAt(selectedImageIndex);
             }
+        }
+
+        ImGui.PopID();
+    }
+
+    private void DrawPassThroughRecorderInspector(int nodeId, PassThroughRecorderStage recorderStage)
+    {
+        ImGui.Separator();
+        ImGui.PushID($"pass_through_recorder_inspector_{nodeId}");
+        ImGui.Text("Pass Through Recorder");
+
+        var status = recorderStage.IsRecording ? "Recording" : "Idle";
+        var statusColor = recorderStage.IsRecording
+            ? new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f)
+            : new System.Numerics.Vector4(0.75f, 0.78f, 0.82f, 1f);
+        ImGui.TextColored(statusColor, status);
+
+        if (!string.IsNullOrWhiteSpace(recorderStage.ActiveFilePath))
+        {
+            ImGui.TextWrapped(recorderStage.ActiveFilePath);
+        }
+
+        var draftPath = _recorderOutputPathDraftByNode.TryGetValue(nodeId, out var currentDraft)
+            ? currentDraft
+            : recorderStage.OutputDirectory;
+
+        ImGui.SetNextItemWidth(-1f);
+        ImGui.InputText("Output Folder", ref draftPath, 1024);
+        _recorderOutputPathDraftByNode[nodeId] = draftPath;
+
+        if (ImGui.Button("Apply Output Folder") && !recorderStage.IsRecording)
+        {
+            recorderStage.SetOutputDirectory(draftPath);
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Pick Folder…") && !recorderStage.IsRecording)
+        {
+            var folder = NativeFilePicker.PickFolder();
+            if (!string.IsNullOrWhiteSpace(folder))
+            {
+                recorderStage.SetOutputDirectory(folder);
+                _recorderOutputPathDraftByNode[nodeId] = folder;
+            }
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Use Default") && !recorderStage.IsRecording)
+        {
+            recorderStage.SetOutputDirectory(string.Empty);
+            _recorderOutputPathDraftByNode[nodeId] = string.Empty;
+        }
+
+        if (recorderStage.IsRecording)
+        {
+            ImGui.TextDisabled("Stop recording before changing folder.");
         }
 
         ImGui.PopID();
